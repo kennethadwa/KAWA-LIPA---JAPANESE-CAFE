@@ -87,6 +87,11 @@ Route::middleware(['auth', 'verified'])->prefix('admin')->name('admin.')->group(
     // --- MODULE: VIBE GALLERY ---
     Route::resource('gallery', GalleryController::class);
 
+    // --- MODULE: OPERATIONAL CALENDAR TRACKER ---
+    // Accessible via: POST /admin/calendar-notes
+    // Route Name: admin.calendar.save (Matches your Vue form post call)
+    Route::post('/calendar-notes', [DashboardController::class, 'saveCalendarNote'])->name('calendar.save');
+
 });
 
 /*

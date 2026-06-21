@@ -10,11 +10,13 @@ const props = defineProps({
 const isModalOpen = ref(false);
 const activeFilter = ref('all');
 const fileInputRef = ref(null);
-const filePreview = ref(null);
+
+// Store multiple object URLs for clean visual previews
+const filePreviews = ref([]);
 
 const form = useForm({
     title: '',
-    file: null,
+    files: [], // Changed from single null object to an Array container
     type: 'event',
     featured: false
 });
@@ -28,34 +30,53 @@ const triggerFileSelect = () => {
     fileInputRef.value.click();
 };
 
-const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        form.file = file;
+// Extracted file processor helper to manage multi-selection and drag-drops
+const processFiles = (filesList) => {
+    const filesArray = Array.from(filesList);
+    
+    // Merge new files into our existing form selection array
+    form.files = [...form.files, ...filesArray];
+    
+    // Generate individual render previews
+    filesArray.forEach(file => {
         if (file.type.startsWith('image/')) {
-            filePreview.value = URL.createObjectURL(file);
-        } else {
-            filePreview.value = null; // Reset if it's a video
+            filePreviews.value.push({
+                name: file.name,
+                type: 'image',
+                url: URL.createObjectURL(file)
+            });
+        } else if (file.type.startsWith('video/')) {
+            filePreviews.value.push({
+                name: file.name,
+                type: 'video',
+                url: URL.createObjectURL(file)
+            });
         }
+    });
+};
+
+const handleFileChange = (e) => {
+    if (e.target.files.length > 0) {
+        processFiles(e.target.files);
     }
 };
 
 const handleFileDrop = (e) => {
-    const file = e.dataTransfer.files[0];
-    if (file) {
-        form.file = file;
-        if (file.type.startsWith('image/')) {
-            filePreview.value = URL.createObjectURL(file);
-        } else {
-            filePreview.value = null;
-        }
+    if (e.dataTransfer.files.length > 0) {
+        processFiles(e.dataTransfer.files);
     }
+};
+
+// Allow user to remove a single item from the batch pool before submitting
+const removeSelectedFile = (index) => {
+    form.files.splice(index, 1);
+    filePreviews.value.splice(index, 1);
 };
 
 const closeModal = () => {
     isModalOpen.value = false;
     form.reset();
-    filePreview.value = null;
+    filePreviews.value = [];
 };
 
 const submitForm = () => {
@@ -88,7 +109,7 @@ const deleteItem = (id) => {
                     class="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 shadow-md shadow-pink-500/20 transform transition duration-150 hover:scale-[1.02] active:scale-[0.98]"
                 >
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                    Upload Asset
+                    Upload Assets
                 </button>
             </div>
         </template>
@@ -155,28 +176,29 @@ const deleteItem = (id) => {
         </div>
 
         <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
-            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md border border-pink-100 overflow-hidden transform transition-all">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg border border-pink-100 overflow-hidden transform transition-all">
                 <div class="px-6 py-4 border-b border-pink-100 flex justify-between items-center bg-pink-50/30">
-                    <h3 class="font-black text-stone-800 tracking-wide uppercase text-sm">Upload Gallery Item</h3>
+                    <h3 class="font-black text-stone-800 tracking-wide uppercase text-sm">Upload Gallery Batch</h3>
                     <button @click="closeModal" class="text-stone-400 hover:text-stone-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
 
-                <form @submit.prevent="submitForm" class="p-6 space-y-4">
+                <form @submit.prevent="submitForm" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">Caption / Title</label>
-                        <input v-model="form.title" type="text" class="w-full px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" placeholder="e.g., Summer Live Acoustic Event" />
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-1">Batch Global Caption (Optional)</label>
+                        <input v-model="form.title" type="text" class="w-full px-4 py-2.5 border border-stone-200 rounded-xl text-sm focus:outline-none focus:border-pink-400" placeholder="Defaults to individual file name if left blank" />
                     </div>
 
                     <div>
-                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-2">Media File (Photo or Video)</label>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-stone-600 mb-2">Select Media Files</label>
                         
                         <input 
                             ref="fileInputRef"
                             type="file" 
                             @change="handleFileChange" 
                             accept="image/*,video/*" 
+                            multiple
                             class="hidden" 
                         />
 
@@ -186,11 +208,7 @@ const deleteItem = (id) => {
                             @drop.prevent="handleFileDrop"
                             class="group/uploader border-2 border-dashed border-sky-400/80 hover:border-pink-400 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-sky-50/10 hover:bg-pink-50/10 transition-all duration-200"
                         >
-                            <div v-if="filePreview" class="mb-2 w-24 h-24 rounded-xl overflow-hidden shadow-xs border border-stone-100">
-                                <img :src="filePreview" class="w-full h-full object-cover" />
-                            </div>
-                            
-                            <div v-else class="text-sky-500 group-hover/uploader:text-pink-500 transition-colors duration-150 mb-2">
+                            <div class="text-sky-500 group-hover/uploader:text-pink-500 transition-colors duration-150 mb-2">
                                 <svg class="w-10 h-10 mx-auto" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
                                 </svg>
@@ -200,15 +218,29 @@ const deleteItem = (id) => {
                                 type="button"
                                 class="px-6 py-1.5 bg-sky-500 group-hover/uploader:bg-pink-500 text-white font-bold text-xs rounded-full shadow-xs transition-colors tracking-wide"
                             >
-                                Browse
+                                Browse Files
                             </button>
-
-                            <p class="text-xs text-stone-400 font-medium mt-2">
-                                {{ form.file ? form.file.name : 'drop a file here' }}
-                            </p>
+                            <p class="text-xs text-stone-400 font-medium mt-2">Click or drop multiple files here</p>
                         </div>
-                        
-                        <span class="block mt-1.5 text-[10px] text-stone-400">*File supported .png, .jpg, .webp & video clips (.mp4, .mov)</span>
+                    </div>
+
+                    <div v-if="filePreviews.length > 0" class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase text-stone-400 tracking-wider">Queue Selection ({{ form.files.length }} files)</label>
+                        <div class="grid grid-cols-3 gap-2 border border-stone-100 p-2 rounded-xl bg-stone-50/50">
+                            <div v-for="(preview, index) in filePreviews" :key="index" class="relative aspect-square rounded-lg overflow-hidden border border-stone-200 shadow-xs group">
+                                <img v-if="preview.type === 'image'" :src="preview.url" class="w-full h-full object-cover" />
+                                <div v-else class="w-full h-full bg-slate-800 flex items-center justify-center text-white text-[10px] font-bold p-1 text-center truncate">
+                                    🎥 Video
+                                </div>
+                                <button 
+                                    type="button"
+                                    @click.stop="removeSelectedFile(index)"
+                                    class="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full opacity-90 hover:opacity-100 transition shadow-xs"
+                                >
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -222,13 +254,13 @@ const deleteItem = (id) => {
 
                     <div class="flex items-center gap-2 py-2">
                         <input type="checkbox" id="featured" v-model="form.featured" class="w-4 h-4 text-pink-500 border-stone-300 rounded focus:ring-pink-400 focus:ring-opacity-25" />
-                        <label for="featured" class="text-xs font-bold uppercase tracking-wider text-stone-700 cursor-pointer select-none">Pin / Highlight as Featured Item</label>
+                        <label for="featured" class="text-xs font-bold uppercase tracking-wider text-stone-700 cursor-pointer select-none">Pin / Highlight all as Featured</label>
                     </div>
 
                     <div class="pt-4 flex justify-end gap-3 border-t border-pink-50">
                         <button type="button" @click="closeModal" class="px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-stone-500 hover:text-stone-700">Cancel</button>
-                        <button type="submit" :disabled="form.processing" class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-rose-400 to-pink-500 rounded-xl shadow-xs transition transform hover:scale-[1.01]">
-                            {{ form.processing ? 'Uploading...' : 'Save Asset' }}
+                        <button type="submit" :disabled="form.processing || form.files.length === 0" class="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-rose-400 to-pink-500 rounded-xl shadow-xs transition transform hover:scale-[1.01] disabled:opacity-40">
+                            {{ form.processing ? 'Uploading Batch...' : 'Save Assets' }}
                         </button>
                     </div>
                 </form>
@@ -236,18 +268,3 @@ const deleteItem = (id) => {
         </div>
     </AuthenticatedLayout>
 </template>
-
-<style scoped>
-/* High-End Shifting Gradient Animation */
-.logo-gradient-wave {
-    background: linear-gradient(270deg, #f472b6, #fb7185, #ec4899, #f43f5e);
-    background-size: 800% 800%;
-    animation: smoothWave 14s ease infinite;
-}
-
-@keyframes smoothWave {
-    0% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-    100% { background-position: 0% 50%; }
-}
-</style>

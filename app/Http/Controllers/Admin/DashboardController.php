@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Menu;
 use App\Models\Gallery;
 use App\Models\Announcement;
-use App\Models\Category; // Imported to safely query category metrics
+use App\Models\Category;
+use App\Models\CalendarNote; // Imported for calendar persistence
+use Illuminate\Http\Request; // Imported for saving notes payload
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -31,6 +33,10 @@ class DashboardController extends Controller
         $galleryImagesCount = Gallery::where('media_type', 'image')->count();
         $galleryVideosCount = Gallery::where('media_type', 'video')->count();
 
+        // 5. Fetch all calendar notes and key them by their date string
+        // Turns data array into index matchable format: {'2026-06-21': {title: '...', body: '...'}}
+        $notes = CalendarNote::all()->keyBy('note_date');
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'menuItemsCount' => $totalMenuItems,
@@ -41,7 +47,37 @@ class DashboardController extends Controller
                     'images' => $galleryImagesCount,
                     'videos' => $galleryVideosCount,
                 ]
-            ]
+            ],
+            'notes' => $notes // Injected into Inertia page props mapping
         ]);
+    }
+
+    /**
+     * Handle the creation, updating, or structural cleaning of operational logs.
+     */
+    public function saveCalendarNote(Request $request)
+    {
+        $request->validate([
+            'note_date' => 'required|date',
+            'title' => 'nullable|string|max:255',
+            'body' => 'nullable|string',
+        ]);
+
+        // If both input fields are wiped clean, delete row execution record
+        if (empty($request->title) && empty($request->body)) {
+            CalendarNote::where('note_date', $request->note_date)->delete();
+            return back();
+        }
+
+        // Upsert operations structure engine execution
+        CalendarNote::updateOrCreate(
+            ['note_date' => $request->note_date],
+            [
+                'title' => $request->title,
+                'body' => $request->body
+            ]
+        );
+
+        return back();
     }
 }

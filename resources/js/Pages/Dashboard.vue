@@ -1,27 +1,23 @@
 <script setup>
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 
-// Receive metrics ledger from backend
+// Receive metrics ledger and notes map from backend
 defineProps({
-    stats: Object
+    stats: Object,
+    notes: Object
 });
 
-// --- CUSTOM INTERACTIVE CALENDAR SYSTEM (TITLE & BODY ARCHITECTURE) ---
+// --- CUSTOM INTERACTIVE CALENDAR SYSTEM (DATABASE PERSISTENCE ARCHITECTURE) ---
 const currentDate = ref(new Date());
 const selectedDateKey = ref(null);
 
-// Separate state bindings for title and body inputs
-const noteTitle = ref('');
-const noteBody = ref('');
-
-// Updated sample data logging format containing Title + Body structures
-const calendarNotes = ref({
-    '2026-06-21': {
-        title: '🚚 Father’s Day Promo',
-        body: 'Execution successful—Free Americano Promo launched on all meals!'
-    }
+// Inertia Form initialization for structured backend routing payload mapping
+const form = useForm({
+    note_date: '',
+    title: '',
+    body: ''
 });
 
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -59,32 +55,32 @@ const daysInMonthGrid = computed(() => {
     return daysGrid;
 });
 
-const selectDate = (dateString) => {
+const selectDate = (dateString, notesProp) => {
     if (!dateString) return;
     selectedDateKey.value = dateString;
     
-    if (calendarNotes.value[dateString]) {
-        noteTitle.value = calendarNotes.value[dateString].title || '';
-        noteBody.value = calendarNotes.value[dateString].body || '';
+    // Bind current target criteria directly to the form element structure
+    form.note_date = dateString;
+    
+    if (notesProp[dateString]) {
+        form.title = notesProp[dateString].title || '';
+        form.body = notesProp[dateString].body || '';
     } else {
-        noteTitle.value = '';
-        noteBody.value = '';
+        form.title = '';
+        form.body = '';
     }
 };
 
 const saveNote = () => {
-    if (!selectedDateKey.value) return;
+    if (!form.note_date) return;
     
-    // Clean up or remove object record if values are empty
-    if (noteTitle.value.trim() === '' && noteBody.value.trim() === '') {
-        delete calendarNotes.value[selectedDateKey.value];
-    } else {
-        calendarNotes.value[selectedDateKey.value] = {
-            title: noteTitle.value.trim(),
-            body: noteBody.value.trim()
-        };
-    }
-    selectedDateKey.value = null; // Close tracking panel tray state
+    // POST request engine dispatch via Ziggy routing helper engine configuration
+    form.post(route('admin.calendar.save'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            selectedDateKey.value = null; // Close tracking panel tray state on database success return loop
+        }
+    });
 };
 </script>
 
@@ -115,7 +111,7 @@ const saveNote = () => {
                     </div>
                 </Link>
 
-                <Link :href="route('admin.menus.index')" class="block bg-white p-6 rounded-2xl border-l-8 border-l-emerald-500 border-y border-r border-stone-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+                <Link :href="route('admin.categories.index')" class="block bg-white p-6 rounded-2xl border-l-8 border-l-emerald-500 border-y border-r border-stone-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-black uppercase tracking-widest text-stone-500 group-hover:text-emerald-600 transition-colors">Menu Categories</span>
                         <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 shadow-xs border border-emerald-100">
@@ -179,22 +175,22 @@ const saveNote = () => {
                         <div v-for="(cell, index) in daysInMonthGrid" :key="index" class="min-h-[75px]">
                             <button 
                                 v-if="cell.day"
-                                @click="selectDate(cell.dateString)"
+                                @click="selectDate(cell.dateString, notes)"
                                 :class="[
                                     'w-full h-full rounded-xl flex flex-col items-start justify-between p-2 text-xs font-bold border transition relative group overflow-hidden',
-                                    calendarNotes[cell.dateString] 
-                                        ? 'bg-rose-50/70 border-rose-200 text-rose-700 hover:bg-rose-100' 
+                                    notes[cell.dateString] 
+                                        ? 'bg-emerald-500 border-emerald-600 text-white hover:bg-emerald-600' 
                                         : 'bg-stone-50/50 border-stone-200/60 text-stone-700 hover:bg-white hover:border-pink-400'
                                 ]"
                             >
                                 <div class="flex items-center justify-between w-full">
                                     <span>{{ cell.day }}</span>
-                                    <span v-if="calendarNotes[cell.dateString]" class="h-1.5 w-1.5 rounded-full bg-rose-600"></span>
+                                    <span v-if="notes[cell.dateString]" class="h-1.5 w-1.5 rounded-full bg-white"></span>
                                 </div>
 
-                                <div v-if="calendarNotes[cell.dateString]" class="w-full text-left mt-1">
-                                    <p class="text-[9px] leading-tight font-black tracking-tight text-rose-800 bg-white/80 border border-rose-200 px-1 py-0.5 rounded-md truncate max-w-full">
-                                        {{ calendarNotes[cell.dateString].title }}
+                                <div v-if="notes[cell.dateString]" class="w-full text-left mt-1">
+                                    <p class="text-[9px] leading-tight font-black tracking-tight text-emerald-900 bg-white/90 border border-emerald-200 px-1 py-0.5 rounded-md truncate max-w-full">
+                                        {{ notes[cell.dateString].title }}
                                     </p>
                                 </div>
                             </button>
@@ -215,7 +211,7 @@ const saveNote = () => {
                                 <label class="text-[10px] font-black uppercase text-stone-400 tracking-wider">Event Title</label>
                                 <input 
                                     type="text" 
-                                    v-model="noteTitle"
+                                    v-model="form.title"
                                     placeholder="e.g., Mother's Day, Store Closed"
                                     class="w-full mt-1 px-3 py-2 text-xs font-bold text-stone-700 bg-white border border-stone-200 rounded-xl focus:ring-1 focus:ring-pink-400 focus:border-pink-400"
                                 />
@@ -224,7 +220,7 @@ const saveNote = () => {
                             <div>
                                 <label class="text-[10px] font-black uppercase text-stone-400 tracking-wider">Details / Description</label>
                                 <textarea 
-                                    v-model="noteBody"
+                                    v-model="form.body"
                                     placeholder="Type complete description logs here..."
                                     class="w-full mt-1 p-3 text-xs font-semibold text-stone-700 bg-white border border-stone-200 rounded-xl focus:ring-1 focus:ring-pink-400 focus:border-pink-400 min-h-[100px]"
                                 ></textarea>
@@ -232,7 +228,13 @@ const saveNote = () => {
                         </div>
                         
                         <div class="flex items-center gap-2">
-                            <button @click="saveNote" class="flex-1 bg-pink-600 hover:bg-pink-700 text-white text-xs font-black py-2.5 rounded-xl transition shadow-xs">Save Update</button>
+                            <button 
+                                @click="saveNote" 
+                                :disabled="form.processing"
+                                class="flex-1 bg-pink-600 hover:bg-pink-700 text-white text-xs font-black py-2.5 rounded-xl transition shadow-xs disabled:opacity-50"
+                            >
+                                {{ form.processing ? 'Saving...' : 'Save Update' }}
+                            </button>
                             <button @click="selectedDateKey = null" class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold px-4 py-2.5 rounded-xl transition">Cancel</button>
                         </div>
                     </div>
