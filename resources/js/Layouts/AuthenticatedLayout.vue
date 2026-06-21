@@ -7,40 +7,35 @@ import ResponsiveNavLink from '@/Components/ResponsiveNavLink.vue';
 import { Link } from '@inertiajs/vue3';
 
 const showingNavigationDropdown = ref(false);
+const isSidebarOpen = ref(true);
 </script>
 
 <template>
-    <!-- Background wrapper with smooth light pastel tone -->
     <div class="flex h-screen bg-pink-50/40 overflow-hidden font-sans antialiased">
         
-        <!-- ========================================================================= -->
-        <!-- DESKTOP SIDEBAR PANEL                                                     -->
-        <!-- ========================================================================= -->
-        <aside class="hidden md:flex md:flex-shrink-0 flex-col w-64 bg-pink-100/90 text-stone-700 shadow-lg border-r border-pink-200/50 z-20 backdrop-blur-sm">
+        <!-- SIDEBAR: Removed white/light border-r, added dynamic width & transitions -->
+        <aside 
+            class="hidden md:flex flex-col bg-pink-100/90 text-stone-700 shadow-lg z-20 backdrop-blur-sm transition-all duration-300 ease-in-out"
+            :class="isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden'"
+        >
             
-            <!-- Brand Identity Header -->
-<div class="flex items-center h-16 px-6 border-b border-pink-200/60 logo-gradient-wave">
-    <Link :href="route('dashboard')" class="flex items-center gap-3 group transition duration-200">
-        <!-- Logo Image Element -->
-        <img 
-            src="/storage/images/logo_kawa.png" 
-            alt="KAWA LIPA Logo" 
-            class="w-14 h-14 rounded-lg object-cover shadow-xs transform transition-transform duration-200 group-hover:scale-105 group-hover:rotate-3"
-        />
-        
-        <!-- Text Wrapper Container -->
-        <div class="flex flex-col">
-            <span class="font-black text-xl tracking-widest text-white drop-shadow-[0_1.5px_2px_rgba(136,19,55,0.4)] group-hover:text-pink-50 transition-colors duration-200">KAWA LIPA</span>
-            <span class="text-[10px] tracking-widest uppercase text-white/90 font-bold -mt-0.5 ml-0.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.1)]">Admin Dashboard</span>
-        </div>
-    </Link>
-</div>
+            <div class="flex items-center h-16 px-6 border-b border-pink-200/60 logo-gradient-wave whitespace-nowrap">
+                <Link :href="route('dashboard')" class="flex items-center gap-3 group transition duration-200">
+                    <img 
+                        src="/storage/images/logo_kawa.png" 
+                        alt="KAWA LIPA Logo" 
+                        class="w-14 h-14 rounded-lg object-cover shadow-xs transform transition-transform duration-200 group-hover:scale-105 group-hover:rotate-3"
+                    />
+                    
+                    <div class="flex flex-col">
+                        <span class="font-black text-xl tracking-widest text-white drop-shadow-[0_1.5px_2px_rgba(136,19,55,0.4)] group-hover:text-pink-50 transition-colors duration-200">KAWA LIPA</span>
+                        <span class="text-[10px] tracking-widest uppercase text-white/90 font-bold -mt-0.5 ml-0.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.1)]">Admin Dashboard</span>
+                    </div>
+                </Link>
+            </div>
 
-            <!-- Workspace Navigation Links -->
-            <nav class="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
+            <nav class="flex-1 px-3 py-6 space-y-2 overflow-y-auto whitespace-nowrap">
                 
-                <!-- [DESKTOP] LINK: DASHBOARD -->
-                <!-- ----------------------------------------------------------------- -->
                 <Link
                     :href="route('dashboard')"
                     class="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transform transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:translate-x-1"
@@ -54,8 +49,6 @@ const showingNavigationDropdown = ref(false);
                     <span>Dashboard</span>
                 </Link>
 
-                <!-- [DESKTOP] LINK: MENUS CATALOG (Updated Route) -->
-                <!-- ----------------------------------------------------------------- -->
                 <Link
                     :href="route('admin.menus.index')"
                     class="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transform transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:translate-x-1"
@@ -69,12 +62,10 @@ const showingNavigationDropdown = ref(false);
                     <span>Menus</span>
                 </Link>
 
-                <!-- [DESKTOP] LINK: ANNOUNCEMENTS (Ready for Route) -->
-                <!-- ----------------------------------------------------------------- -->
                 <Link
-                    :href="route('dashboard')"
+                    :href="route('admin.announcements.index')"
                     class="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transform transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:translate-x-1"
-                    :class="route().current('announcements.*') 
+                    :class="route().current('admin.announcements.*') 
                         ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-md shadow-pink-500/20' 
                         : 'text-pink-900/80 hover:bg-white/60 hover:text-pink-700 shadow-xs'"
                 >
@@ -84,51 +75,66 @@ const showingNavigationDropdown = ref(false);
                     <span>Announcements</span>
                 </Link>
 
-                <!-- [DESKTOP] LINK: VIBE GALLERY (Ready for Route) -->
-                <!-- ----------------------------------------------------------------- -->
                 <Link
-                    :href="route('dashboard')"
+                    :href="route('admin.gallery.index')"
                     class="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold rounded-xl transform transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] hover:translate-x-1"
-                    :class="route().current('gallery.*') 
+                    :class="route().current('admin.gallery.*') 
                         ? 'bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-md shadow-pink-500/20' 
                         : 'text-pink-900/80 hover:bg-white/60 hover:text-pink-700 shadow-xs'"
                 >
                     <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375 0 11-.75 0 .375 0 01.75 0z" />
                     </svg>
                     <span>Vibe Gallery</span>
                 </Link>
             </nav>
 
-            <!-- Sidebar Footnote Details -->
-            <div class="p-4 border-t border-pink-200/40 bg-pink-200/10 text-[11px] font-bold text-pink-700/50 text-center tracking-widest">
-                KAWA DASHBOARD v1.0.0
+            <!-- FOOTER ZONE: Added arrow control centered at the top of the version text -->
+            <div class="flex flex-col items-center justify-center p-4 border-t border-pink-200/40 bg-pink-200/10 whitespace-nowrap">
+                <button 
+                    @click="isSidebarOpen = false"
+                    class="mb-2 p-1.5 rounded-lg text-pink-700/60 hover:text-pink-900 hover:bg-white/50 transition-colors duration-150 focus:outline-none"
+                    title="Collapse Sidebar"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.75 19.5l-7.5-7.5 7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+                    </svg>
+                </button>
+                <div class="text-[11px] font-bold text-pink-700/50 text-center tracking-widest">
+                    KAWA DASHBOARD v1.0.0
+                </div>
             </div>
         </aside>
 
-        <!-- ========================================================================= -->
-        <!-- CORE PLATFORM MAIN WORKSPACE LAYOUT                                       -->
-        <!-- ========================================================================= -->
+        <!-- FLOATING EXPAND BUTTON: Appears when sidebar is completely closed -->
+        <button 
+            v-if="!isSidebarOpen"
+            @click="isSidebarOpen = true"
+            class="hidden md:flex fixed bottom-14 left-4 z-30 p-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-pink-500 text-white shadow-lg shadow-pink-500/20 hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none"
+            title="Expand Sidebar"
+        >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 4.5l7.5 7.5-7.5 7.5m-6-15l7.5 7.5-7.5 7.5" />
+            </svg>
+        </button>
+
         <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
             
-            <!-- Global Top Utility Navigation Bar -->
-            <nav class="border-b border-pink-100 bg-white/80 backdrop-blur-md shadow-xs z-10">
+            <nav class="border-b border-pink-500/30 logo-gradient-wave backdrop-blur-md z-10 shadow-sm">
                 <div class="px-4 sm:px-6 lg:px-8">
                     <div class="flex h-16 justify-between items-center">
                         
                         <div class="flex items-center">
-                            <span class="font-bold text-xs uppercase tracking-widest text-stone-500 hidden md:inline-block bg-stone-100 px-2.5 py-1 rounded-md">
-                                Management Panel
+                            <span class="font-bold text-xs uppercase tracking-widest text-pink-100 hidden md:inline-block bg-white/10 border border-white/20 px-2.5 py-1 rounded-md backdrop-blur-xs">
+                                Admin Dashboard
                             </span>
-                            <!-- Mobile-Only Branding Header Logo -->
                             <div class="flex flex-col shrink-0 items-start md:hidden">
                                 <Link :href="route('dashboard')">
-                                    <span class="font-black text-lg tracking-widest text-pink-600">KAWA LIPA</span>
+                                    <span class="font-black text-lg tracking-widest text-white drop-shadow-[0_1.5px_2px_rgba(136,19,55,0.4)]">KAWA LIPA</span>
                                 </Link>
                             </div>
                         </div>
 
-                        <!-- Right Actions Dropdown Menu (Desktop View) -->
                         <div class="hidden sm:flex sm:items-center">
                             <div class="relative ms-3">
                                 <Dropdown align="right" width="48">
@@ -136,10 +142,10 @@ const showingNavigationDropdown = ref(false);
                                         <span class="inline-flex rounded-md">
                                             <button
                                                 type="button"
-                                                class="inline-flex items-center rounded-xl border border-pink-100 bg-white px-3.5 py-2 text-sm font-semibold text-stone-600 transition-all duration-150 hover:bg-pink-50/50 hover:text-pink-600 focus:outline-none shadow-xs"
+                                                class="inline-flex items-center rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-sm font-semibold text-white transition-all duration-150 hover:bg-white/20 hover:text-pink-50 focus:outline-none shadow-xs"
                                             >
                                                 {{ $page.props.auth.user.name }}
-                                                <svg class="-me-0.5 ms-2 h-4 w-4 text-stone-400 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                                <svg class="-me-0.5 ms-2 h-4 w-4 text-pink-100 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
                                                 </svg>
                                             </button>
@@ -154,11 +160,10 @@ const showingNavigationDropdown = ref(false);
                             </div>
                         </div>
 
-                        <!-- Hamburger Toggle Controls Button (Mobile View Only) -->
                         <div class="-me-2 flex items-center md:hidden">
                             <button
                                 @click="showingNavigationDropdown = !showingNavigationDropdown"
-                                class="inline-flex items-center justify-center rounded-xl p-2 text-stone-500 transition duration-150 ease-in-out hover:bg-pink-100 hover:text-pink-600 focus:outline-none"
+                                class="inline-flex items-center justify-center rounded-xl p-2 text-white/90 transition duration-150 ease-in-out hover:bg-white/10 hover:text-white focus:outline-none"
                             >
                                 <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                     <path :class="{ hidden: showingNavigationDropdown, 'inline-flex': !showingNavigationDropdown }" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -169,34 +174,14 @@ const showingNavigationDropdown = ref(false);
                     </div>
                 </div>
 
-                <!-- ========================================================================= -->
-                <!-- MOBILE DROPDOWN INTERFACE OVERLAY                                         -->
-                <!-- ========================================================================= -->
                 <div :class="{ block: showingNavigationDropdown, hidden: !showingNavigationDropdown }" class="md:hidden bg-white border-b border-pink-100 shadow-inner">
                     <div class="space-y-1 pb-3 pt-2 px-3">
-                        
-                        <!-- [MOBILE] LINK: DASHBOARD -->
-                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">
-                            Dashboard
-                        </ResponsiveNavLink>
-                        
-                        <!-- [MOBILE] LINK: MENUS CATALOG (Updated Route) -->
-                        <ResponsiveNavLink :href="route('admin.menus.index')" :active="route().current('admin.menus.*')">
-                            Menus
-                        </ResponsiveNavLink>
-                        
-                        <!-- [MOBILE] LINK: ANNOUNCEMENTS -->
-                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('announcements.*')">
-                            Announcements
-                        </ResponsiveNavLink>
-                        
-                        <!-- [MOBILE] LINK: VIBE GALLERY -->
-                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('gallery.*')">
-                            Vibe Gallery
-                        </ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('dashboard')" :active="route().current('dashboard')">Dashboard</ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('admin.menus.index')" :active="route().current('admin.menus.*')">Menus</ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('admin.announcements.index')" :active="route().current('admin.announcements.*')">Announcements</ResponsiveNavLink>
+                        <ResponsiveNavLink :href="route('admin.gallery.index')" :active="route().current('admin.gallery.*')">Vibe Gallery</ResponsiveNavLink>
                     </div>
                     
-                    <!-- Mobile Account Configuration Footer -->
                     <div class="border-t border-pink-100 pb-2 pt-4 px-4 bg-pink-50/30">
                         <div class="px-2">
                             <div class="text-base font-bold text-stone-800">{{ $page.props.auth.user.name }}</div>
@@ -210,14 +195,12 @@ const showingNavigationDropdown = ref(false);
                 </div>
             </nav>
 
-            <!-- Section Layout Secondary Breadcrumb Header Slot Wrapper -->
             <header class="bg-white border-b border-pink-100/50 shadow-xs" v-if="$slots.header">
                 <div class="mx-auto w-full px-6 py-4 sm:px-8">
                     <slot name="header" />
                 </div>
             </header>
 
-            <!-- Principal Workspace Page View Render Target -->
             <main class="flex-1 overflow-x-hidden overflow-y-auto p-6 sm:p-8 bg-white">
                 <slot />
             </main>

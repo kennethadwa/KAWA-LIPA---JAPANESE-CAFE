@@ -3,7 +3,6 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
-// Accept the dynamic categories array sent by MenuController@create
 const props = defineProps({
     categories: {
         type: Array,
@@ -11,36 +10,28 @@ const props = defineProps({
     }
 });
 
-// Track local image URL string for real-time frontend image previews
 const imagePreview = ref(null);
 
-// Inertia Form Helper loaded with dynamic category initialization
 const form = useForm({
     name: '',
     description: '',
     price: '',
-    // Default to the first available backend category, fallback to 'coffee' if empty
-    category: props.categories.length > 0 ? props.categories[0].name : 'coffee',
+    category_id: props.categories.length > 0 ? props.categories[0].id : '', 
     is_available: true,
     image: null, 
 });
 
-/**
-* Capture raw binary data from the file input target and map a local preview link.
-*/
 const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-        form.image = file; // Matches the 'image' validation rule in MenuController
+        form.image = file;
         imagePreview.value = URL.createObjectURL(file);
     }
 };
 
 const submit = () => {
     form.post(route('admin.menus.store'), {
-        onError: () => {
-            // Error handlers execute seamlessly if server validation catches issues
-        }
+        onError: () => {}
     });
 };
 </script>
@@ -49,184 +40,238 @@ const submit = () => {
     <Head title="Create Menu Item" />
 
     <AuthenticatedLayout>
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-sans antialiased">
             
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-stone-200/60 pb-6 mb-8">
+            <!-- Breadcrumbs Header Master -->
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-pink-100/80 pb-6 mb-8">
                 <div>
-                    <h2 class="text-2xl font-black tracking-tight text-stone-800 sm:text-3xl">Add Menu Item</h2>
+                    <h2 class="text-3xl font-black tracking-tight text-stone-900">
+                        Add <span class="bg-gradient-to-r from-rose-500 to-pink-600 bg-clip-text text-transparent">Menu Item</span>
+                    </h2>
                     <p class="text-xs text-stone-500 font-medium mt-1.5">
-                        Introduce a new flavor, pastry, or espresso asset to the master ledger.
+                        Introduce a new signature blend, dynamic pastry selection, or seasonal espresso asset to the menu master ledger.
                     </p>
                 </div>
                 
                 <Link 
                     :href="route('admin.menus.index')"
-                    class="inline-flex items-center justify-center gap-2 border border-stone-200 bg-white hover:bg-stone-50 text-stone-600 font-bold text-xs px-4 py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-xs shrink-0"
+                    class="inline-flex items-center justify-center gap-2 border border-pink-200/60 bg-pink-50/40 hover:bg-pink-100/60 text-pink-900/80 font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all duration-150 active:scale-95 shadow-2xs shrink-0"
                 >
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 text-pink-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                     </svg>
-                    Back to Ledger
+                    Back to Catalog Ledger
                 </Link>
             </div>
 
-            <div class="bg-white rounded-2xl border border-stone-200/80 shadow-xs p-6 sm:p-10 transition-all">
-                <h3 class="text-xs font-black text-stone-400 uppercase tracking-widest border-b border-stone-100 pb-4 mb-6">
-                    New Catalog Entry Form
-                </h3>
+            <!-- Main Interactive Form Interface Block -->
+            <form @submit.prevent="submit" class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 
-                <form @submit.prevent="submit" class="space-y-6">
+                <!-- Left Hand Column: Dynamic Interactive Media Dropzone Zone (4 Cols) -->
+                <div class="lg:col-span-5 space-y-3">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-stone-700">
+                        Product Display Canvas
+                    </label>
                     
-                    <div>
-                        <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider mb-2">
-                            Product Display Image
-                        </label>
-                        
-                        <div class="relative group">
-                            <input 
-                                id="file-upload"
-                                type="file" 
-                                accept="image/*"
-                                @change="handleFileChange"
-                                class="hidden"
-                            />
+                    <div class="relative group">
+                        <input 
+                            id="file-upload"
+                            type="file" 
+                            accept="image/*"
+                            @change="handleFileChange"
+                            class="hidden"
+                        />
 
-                            <label 
-                                for="file-upload"
-                                class="relative flex flex-col items-center justify-center min-h-[220px] w-full border-2 border-dashed border-sky-400 bg-sky-50/10 hover:bg-sky-50/30 rounded-2xl cursor-pointer p-6 text-center transition-all duration-200 overflow-hidden"
-                            >
-                                <div v-if="imagePreview" class="relative w-full flex items-center justify-center">
-                                    <img 
-                                        :src="imagePreview" 
-                                        class="max-h-[350px] max-w-full h-auto object-contain rounded-xl shadow-sm border border-stone-200/50" 
-                                        alt="Uploaded Preview" 
-                                    />
-                                    
-                                    <div class="absolute inset-0 bg-stone-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl backdrop-blur-xs">
-                                        <span class="text-white text-[11px] font-bold uppercase tracking-wider bg-stone-900/90 px-5 py-2.5 rounded-lg border border-stone-600 shadow-lg">
-                                            Change Image
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div v-else class="flex flex-col items-center justify-center space-y-4 select-none animate-fade-in w-full">
-                                    <div class="text-sky-500 group-hover:scale-105 transition-transform duration-200 mb-1">
-                                        <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5h10.5a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0016.5 4.5H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z" />
-                                        </svg>
-                                    </div>
-
-                                    <span class="bg-sky-500 text-white font-semibold text-sm px-10 py-3 rounded-lg shadow-sm group-hover:bg-sky-600 transition-colors inline-block">
-                                        Browse
+                        <label 
+                            for="file-upload"
+                            class="relative flex flex-col items-center justify-center min-h-[320px] w-full border-2 border-dashed border-pink-300 bg-gradient-to-br from-pink-50/30 to-rose-50/10 hover:from-pink-50/60 hover:to-rose-50/30 rounded-2xl cursor-pointer p-6 text-center transition-all duration-300 overflow-hidden shadow-xs"
+                        >
+                            <!-- Dynamic Image Rendering Layer -->
+                            <div v-if="imagePreview" class="relative w-full h-full flex items-center justify-center animate-fade-in">
+                                <img 
+                                    :src="imagePreview" 
+                                    class="max-h-[320px] max-w-full h-auto object-cover rounded-xl shadow-md border border-pink-100" 
+                                    alt="Uploaded Preview" 
+                                />
+                                
+                                <div class="absolute inset-0 bg-stone-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center rounded-xl backdrop-blur-xs">
+                                    <span class="text-white text-xs font-bold uppercase tracking-widest bg-gradient-to-r from-rose-500 to-pink-500 px-5 py-2.5 rounded-xl shadow-lg transform transition-transform duration-200 group-hover:scale-105">
+                                        Change Canvas Media
                                     </span>
-
-                                    <div class="space-y-1.5 mt-2">
-                                        <p class="text-stone-400 font-medium text-[13px] tracking-wide">drop a file here</p>
-                                        <p class="text-[12px] text-stone-600 font-medium tracking-tight">
-                                            <span class="text-rose-500 font-black mr-0.5">*</span>File supported .png, .jpg & .webp
-                                        </p>
-                                    </div>
                                 </div>
-                            </label>
-                        </div>
-                        
-                        <div v-if="form.errors.image" class="text-rose-500 text-[11px] font-bold mt-2 pl-1">{{ form.errors.image }}</div>
-                    </div>
+                            </div>
 
-                    <div>
-                        <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider">Item Name</label>
+                            <!-- Empty State Upload Layer -->
+                            <div v-else class="flex flex-col items-center justify-center space-y-4 select-none w-full py-6">
+                                <div class="text-pink-400 p-4 bg-pink-100/60 rounded-2xl transform transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-2xs">
+                                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                                    </svg>
+                                </div>
+
+                                <span class="bg-gradient-to-r from-rose-400 to-pink-500 text-white font-bold text-xs uppercase tracking-widest px-6 py-2.5 rounded-xl shadow-md shadow-pink-500/10 group-hover:from-rose-500 group-hover:to-pink-600 transition-all">
+                                    Browse Storage
+                                </span>
+
+                                <div class="space-y-1">
+                                    <p class="text-stone-400 font-semibold text-xs tracking-wide">Or drag and drop asset raw file</p>
+                                    <p class="text-[11px] text-stone-500 font-medium">
+                                        Supported extensions: <span class="font-bold text-pink-600">PNG, JPG, WEBP</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <p v-if="form.errors.image" class="text-rose-600 text-xs font-semibold mt-2 pl-1 animate-pulse flex items-center gap-1">
+                        ⚠️ {{ form.errors.image }}
+                    </p>
+                </div>
+
+                <!-- Right Hand Column: Premium Product Parameters Data Card (7 Cols) -->
+                <div class="lg:col-span-7 bg-gradient-to-br from-white to-pink-50/10 border border-pink-100 rounded-2xl p-6 sm:p-8 shadow-xl shadow-pink-900/[0.02] backdrop-blur-md space-y-5 relative">
+                    <div class="h-1.5 w-full bg-gradient-to-r from-rose-400 to-pink-500 absolute top-0 left-0 rounded-t-2xl"></div>
+                    
+                    <!-- Form Inner Content Partition Header -->
+                    <h3 class="text-xs font-black text-stone-400 uppercase tracking-widest border-b border-pink-100/60 pb-3">
+                        Metadata Input Panel
+                    </h3>
+
+                    <!-- Parameter Row: Product Variant Name -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold tracking-wide text-stone-700">Item Presentation Name</label>
                         <input 
                             v-model="form.name" 
                             type="text" 
-                            placeholder="e.g., Spanish Latte" 
-                            class="mt-1.5 w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs font-medium placeholder-stone-400 text-stone-700 shadow-2xs focus:outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-400/10 transition-all" 
+                            placeholder="e.g., Signature White Spanish Latte" 
+                            class="w-full bg-stone-50/60 border border-stone-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-stone-400 text-stone-800 transition-all focus:outline-none focus:ring-4 focus:ring-pink-500/10 focus:border-pink-400 focus:bg-white" 
+                            :class="{ 'border-rose-500 focus:border-rose-500': form.errors.name }"
                             required 
                         />
-                        <div v-if="form.errors.name" class="text-rose-500 text-[11px] font-bold mt-1">{{ form.errors.name }}</div>
+                        <p v-if="form.errors.name" class="text-rose-600 text-xs font-medium mt-1">{{ form.errors.name }}</p>
                     </div>
 
+                    <!-- Parameter Multi-Grid Row: Price & Category Selector -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider">Price (PHP)</label>
-                            <input 
-                                v-model="form.price" 
-                                type="number" 
-                                step="0.01" 
-                                placeholder="140.00" 
-                                class="mt-1.5 w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs font-medium placeholder-stone-400 text-stone-700 shadow-2xs focus:outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-400/10 transition-all" 
-                                required   
-                            />
-                            <div v-if="form.errors.price" class="text-rose-500 text-[11px] font-bold mt-1">{{ form.errors.price }}</div>
+                        
+                        <!-- Input Element: Numerical Price -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-bold tracking-wide text-stone-700">Price Structure (PHP)</label>
+                            <div class="relative rounded-xl shadow-2xs">
+                                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                    <span class="text-stone-400 font-bold text-xs tracking-wider">₱</span>
+                                </div>
+                                <input 
+                                    v-model="form.price" 
+                                    type="number" 
+                                    step="0.01" 
+                                    placeholder="145.00" 
+                                    class="w-full bg-stone-50/60 border border-stone-200 rounded-xl pl-8 pr-4 py-3 text-sm font-semibold placeholder-stone-400 text-stone-800 transition-all focus:outline-none focus:ring-4 focus:ring-pink-500/10 focus:border-pink-400 focus:bg-white" 
+                                    :class="{ 'border-rose-500 focus:border-rose-500': form.errors.price }"
+                                    required   
+                                />
+                            </div>
+                            <p v-if="form.errors.price" class="text-rose-600 text-xs font-medium mt-1">{{ form.errors.price }}</p>
                         </div>
                         
-                        <div>
-                            <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider">Category</label>
+                        <!-- Input Element: Category Dropdown Wrapper -->
+                        <div class="space-y-1.5">
+                            <label class="block text-xs font-bold tracking-wide text-stone-700">Category Node Link</label>
                             <select 
-                                v-model="form.category" 
-                                class="mt-1.5 w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs font-medium text-stone-700 shadow-2xs focus:outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-400/10 transition-all capitalize"
+                                v-model="form.category_id" 
+                                class="w-full bg-stone-50/60 border border-stone-200 rounded-xl px-3.5 py-3 text-sm font-semibold text-stone-700 transition-all focus:outline-none focus:ring-4 focus:ring-pink-500/10 focus:border-pink-400 focus:bg-white"
+                                :class="{ 'border-rose-500 focus:border-rose-500': form.errors.category_id }"
+                                required
                             >
-                                <option 
-                                    v-for="cat in categories" 
-                                    :key="cat.slug" 
-                                    :value="cat.name"
-                                >
+                                <option v-for="cat in categories" :key="cat.id" :value="cat.id">
                                     {{ cat.name }}
                                 </option>
-
-                                <option v-if="categories.length === 0" value="coffee">☕ Coffee</option>
+                                <option v-if="categories.length === 0" value="" disabled>
+                                    ⚠️ Create a category first!
+                                </option>
                             </select>
-                            <div v-if="form.errors.category" class="text-rose-500 text-[11px] font-bold mt-1">{{ form.errors.category }}</div>
+                            <p v-if="form.errors.category_id" class="text-rose-600 text-xs font-medium mt-1">{{ form.errors.category_id }}</p>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider mb-2.5">Initial Ledger Status</label>
-                        <div class="flex flex-wrap items-center gap-4">
-                            <label class="flex items-center gap-2 text-xs font-semibold text-stone-700 cursor-pointer bg-stone-50/60 border border-stone-200 rounded-xl px-4 py-2.5 hover:bg-stone-100/60 transition-all select-none">
+                    <!-- Parameter Row: Custom Styled Operational Radio Pills -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold tracking-wide text-stone-700">Initial Catalog Ledger Status</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            
+                            <!-- Radio Component Option: Available -->
+                            <label 
+                                class="flex items-center gap-3 text-xs font-bold tracking-wide cursor-pointer border rounded-xl px-4 py-3.5 transition-all select-none"
+                                :class="form.is_available === true 
+                                    ? 'border-pink-400 bg-pink-50/40 text-pink-900 shadow-2xs' 
+                                    : 'border-stone-200 bg-stone-50/30 text-stone-500 hover:bg-stone-50'"
+                            >
                                 <input 
                                     type="radio" 
                                     :value="true" 
                                     v-model="form.is_available" 
-                                    class="w-4 h-4 text-stone-800 border-stone-300 focus:ring-stone-400/40 focus:ring-offset-0"
+                                    class="w-4 h-4 text-pink-500 border-stone-300 focus:ring-pink-400/40 focus:ring-offset-0"
                                 />
-                                Available for Purchase
+                                Active & Available for Purchase
                             </label>
-                            <label class="flex items-center gap-2 text-xs font-semibold text-stone-700 cursor-pointer bg-stone-50/60 border border-stone-200 rounded-xl px-4 py-2.5 hover:bg-stone-100/60 transition-all select-none">
+
+                            <!-- Radio Component Option: Sold Out -->
+                            <label 
+                                class="flex items-center gap-3 text-xs font-bold tracking-wide cursor-pointer border rounded-xl px-4 py-3.5 transition-all select-none"
+                                :class="form.is_available === false 
+                                    ? 'border-rose-400 bg-rose-50/40 text-rose-900 shadow-2xs' 
+                                    : 'border-stone-200 bg-stone-50/30 text-stone-500 hover:bg-stone-50'"
+                            >
                                 <input 
                                     type="radio" 
                                     :value="false" 
                                     v-model="form.is_available" 
-                                    class="w-4 h-4 text-stone-800 border-stone-300 focus:ring-stone-400/40 focus:ring-offset-0"
+                                    class="w-4 h-4 text-rose-500 border-stone-300 focus:ring-rose-400/40 focus:ring-offset-0"
                                 />
-                                Mark as Sold Out
+                                Mark as Delisted / Sold Out
                             </label>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-[11px] font-black uppercase text-stone-500 tracking-wider">Description / Tasting Notes</label>
+                    <!-- Parameter Row: Narrative Description Block -->
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-bold tracking-wide text-stone-700">Description / Tasting Profile Notes</label>
                         <textarea 
                             v-model="form.description" 
                             rows="4" 
-                            placeholder="Sweetened condensed milk mixed with signature dark roast espresso..." 
-                            class="mt-1.5 w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2.5 text-xs font-medium placeholder-stone-400 text-stone-700 shadow-2xs focus:outline-none focus:border-stone-400 focus:ring-2 focus:ring-stone-400/10 transition-all"
+                            placeholder="Crafted with sweetened condensed milk configurations, premium micro-foamed dairy, mixed meticulously with signature dark roast espresso pulls..." 
+                            class="w-full bg-stone-50/60 border border-stone-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-stone-400 text-stone-800 transition-all focus:outline-none focus:ring-4 focus:ring-pink-500/10 focus:border-pink-400 focus:bg-white"
                         ></textarea>
-                        <div v-if="form.errors.description" class="text-rose-500 text-[11px] font-bold mt-1">{{ form.errors.description }}</div>
+                        <p v-if="form.errors.description" class="text-rose-600 text-xs font-medium mt-1">{{ form.errors.description }}</p>
                     </div>
 
-                    <div class="flex justify-end pt-4 border-t border-stone-100">
+                    <!-- Submittal Footer Toolbar Boundary Layout -->
+                    <div class="flex items-center justify-end gap-3 pt-4 border-t border-pink-100/60">
+                        <Link
+                            :href="route('admin.menus.index')"
+                            class="inline-flex items-center justify-center bg-white border border-stone-200 hover:bg-stone-50 text-stone-700 text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition-all duration-150 active:scale-98"
+                        >
+                            Cancel
+                        </Link>
+
                         <button 
                             type="submit" 
                             :disabled="form.processing" 
-                            class="w-full sm:w-auto bg-stone-800 hover:bg-stone-900 text-white font-bold text-sm uppercase tracking-wider px-8 py-3.5 rounded-lg transition-all shadow-md active:scale-[0.98] disabled:opacity-50"
+                            class="w-full sm:w-auto bg-gradient-to-r from-rose-400 to-pink-500 hover:from-rose-500 hover:to-pink-600 text-white font-bold text-xs uppercase tracking-widest px-8 py-3.5 rounded-xl transition-all duration-200 shadow-md shadow-pink-500/10 hover:shadow-pink-500/20 active:scale-98 disabled:opacity-50 disabled:pointer-events-none"
                         >
-                            {{ form.processing ? 'Registering Item...' : 'Save Item to Ledger' }}
+                            <div class="flex items-center justify-center gap-2">
+                                <svg v-if="form.processing" class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                                <span>{{ form.processing ? 'Registering Asset...' : 'Save Item to Ledger' }}</span>
+                            </div>
                         </button>
                     </div>
 
-                </form>
-            </div>
-
+                </div>
+            </form>
         </div>
     </AuthenticatedLayout>
 </template>

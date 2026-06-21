@@ -1,386 +1,799 @@
 <script setup>
-import { Head, Link } from '@inertiajs/vue3';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { Head } from '@inertiajs/vue3';
 
-defineProps({
-    canLogin: {
-        type: Boolean,
-    },
-    canRegister: {
-        type: Boolean,
-    },
-    laravelVersion: {
-        type: String,
-        required: true,
-    },
-    phpVersion: {
-        type: String,
-        required: true,
-    },
+// Receive public catalog content blocks
+const props = defineProps({
+    menus: Array,
+    categories: Array, 
+    announcements: Array,
+    gallery: Array
 });
 
-function handleImageError() {
-    document.getElementById('screenshot-container')?.classList.add('!hidden');
-    document.getElementById('docs-card')?.classList.add('!row-span-1');
-    document.getElementById('docs-card-content')?.classList.add('!flex-row');
-    document.getElementById('background')?.classList.add('!hidden');
-}
+// Reactivity Layers: Sub-Filtering & Text Searching 
+const searchQuery = ref('');
+const selectedCategory = ref('All');
+
+// DOM Section Element Targets for Scrolling
+const menuSection = ref(null);
+const updatesSection = ref(null);
+const gallerySection = ref(null);
+const aboutSection = ref(null);
+
+// Slider References
+const menuSliderRef = ref(null);
+const announcementSliderRef = ref(null); 
+const gallerySliderRef = ref(null);
+
+// Background Interactive Elements Container Ref
+const butterflyContainer = ref(null);
+let butterflyInterval = null;
+
+onMounted(() => {
+    // Generate butterflies naturally over time
+    if (butterflyContainer.value) {
+        const createButterfly = () => {
+            if (!butterflyContainer.value || butterflyContainer.value.children.length > 15) return;
+            
+            const butterfly = document.createElement('div');
+            butterfly.className = 'absolute pointer-events-none z-0 bfly-element';
+            
+            // Random properties
+            const startX = Math.random() * 100;
+            const startY = Math.random() * 40 + 60; // Start mostly from bottom half
+            const size = Math.random() * 8 + 6; // 6px to 14px
+            const duration = Math.random() * 15 + 15; // 15s to 30s travel time
+            const flutterSpeed = Math.random() * 0.3 + 0.2; // Flutter speed
+            
+            butterfly.style.left = `${startX}%`;
+            butterfly.style.top = `${startY}%`;
+            butterfly.style.width = `${size}px`;
+            butterfly.style.height = `${size}px`;
+            butterfly.style.setProperty('--bfly-duration', `${duration}s`);
+            butterfly.style.setProperty('--bfly-flutter', `${flutterSpeed}s`);
+            butterfly.style.setProperty('--bfly-drift', `${Math.random() * 100 - 50}px`);
+            
+            // Build visual wings structure
+            butterfly.innerHTML = `
+                <div class="bfly-wings">
+                    <div class="bfly-wing bfly-left"></div>
+                    <div class="bfly-wing bfly-right"></div>
+                </div>
+            `;
+            
+            butterflyContainer.value.appendChild(butterfly);
+            
+            // Remove after animation completes
+            setTimeout(() => {
+                if (butterfly.parentNode) {
+                    butterfly.parentNode.removeChild(butterfly);
+                }
+            }, duration * 1000);
+        };
+
+        // Seed initial batch
+        for(let i = 0; i < 6; i++) {
+            setTimeout(createButterfly, i * 1200);
+        }
+        // Continuous spawn sequence
+        butterflyInterval = setInterval(createButterfly, 4000);
+    }
+});
+
+onBeforeUnmount(() => {
+    if (butterflyInterval) clearInterval(butterflyInterval);
+});
+
+const scrollToSection = (elementRef) => {
+    if (elementRef) {
+        const offset = 100; 
+        const bodyRect = document.body.getBoundingClientRect().top;
+        const elementRect = elementRef.getBoundingClientRect().top;
+        const elementPosition = elementRect - bodyRect;
+        const offsetPosition = elementPosition - offset;
+
+        window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+};
+
+// Slider Utilities
+const slide = (elementRef, direction) => {
+    if (elementRef) {
+        const scrollAmount = elementRef.clientWidth * 0.85;
+        elementRef.scrollBy({
+            left: direction === 'left' ? -scrollAmount : scrollAmount,
+            behavior: 'smooth'
+        });
+    }
+};
+
+// Infinite Horizontal Grid Gallery Navigation Logic
+const navigateGallery = (direction) => {
+    const el = gallerySliderRef.value;
+    if (!el) return;
+
+    const scrollAmount = el.clientWidth; 
+    const maxScroll = el.scrollWidth - el.clientWidth;
+
+    if (direction === 'right') {
+        // If we hit or pass the end threshold, bounce cleanly back to zero index position
+        if (Math.ceil(el.scrollLeft) >= maxScroll - 15) {
+            el.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+            el.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+        }
+    } else {
+        // If back at index start boundary, snap straight to maximum outer content track width
+        if (el.scrollLeft <= 15) {
+            el.scrollTo({ left: maxScroll, behavior: 'smooth' });
+        } else {
+            el.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+        }
+    }
+};
+
+// Modal State Management
+const selectedMenuItem = ref(null);
+const isMenuModalOpen = ref(false);
+
+const selectedGalleryItem = ref(null);
+const isGalleryModalOpen = ref(false);
+
+const openMenuModal = (item) => {
+    selectedMenuItem.value = item;
+    isMenuModalOpen.value = true;
+};
+
+const closeMenuModal = () => {
+    isMenuModalOpen.value = false;
+    setTimeout(() => { selectedMenuItem.value = null; }, 300);
+};
+
+const openGalleryModal = (item) => {
+    selectedGalleryItem.value = item;
+    isGalleryModalOpen.value = true;
+};
+
+const closeGalleryModal = () => {
+    isGalleryModalOpen.value = false;
+    setTimeout(() => { selectedGalleryItem.value = null; }, 300);
+};
+
+const getCategoryName = (item) => {
+    if (item.category && typeof item.category === 'object') {
+        return item.category.name;
+    }
+    return item.category || 'Standard';
+};
+
+// Menu Items Counter for Pill Badges
+const getAllItemsCount = () => {
+    return props.menus ? props.menus.length : 0;
+};
+
+const getCategoryCount = (categoryName) => {
+    if (!props.menus) return 0;
+    return props.menus.filter(item => {
+        const itemCat = getCategoryName(item);
+        return itemCat.toLowerCase() === categoryName.toLowerCase();
+    }).length;
+};
+
+// Dynamic Search Computation Engine
+const filteredMenus = computed(() => {
+    return (props.menus || []).filter(item => {
+        const matchesSearch = item.name.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
+                              (item.description && item.description.toLowerCase().includes(searchQuery.value.toLowerCase()));
+        
+        const categoryName = getCategoryName(item);
+        const matchesCategory = selectedCategory.value === 'All' || 
+                                categoryName.toLowerCase() === selectedCategory.value.toLowerCase();
+                                
+        return matchesSearch && matchesCategory;
+    });
+});
+
+const filteredAnnouncements = computed(() => {
+    if (!searchQuery.value) return props.announcements || [];
+    return (props.announcements || []).filter(ann => 
+        ann.title.toLowerCase().includes(searchQuery.value.toLowerCase()) || 
+        ann.content.toLowerCase().includes(searchQuery.value.toLowerCase())
+    );
+});
 </script>
 
 <template>
-    <Head title="Welcome" />
-    <div class="bg-gray-50 text-black/50 dark:bg-black dark:text-white/50">
-        <img
-            id="background"
-            class="absolute -left-20 top-0 max-w-[877px]"
-            src="https://laravel.com/assets/img/welcome/background.svg"
-        />
-        <div
-            class="relative flex min-h-screen flex-col items-center justify-center selection:bg-[#FF2D20] selection:text-white"
-        >
-            <div class="relative w-full max-w-2xl px-6 lg:max-w-7xl">
-                <header
-                    class="grid grid-cols-2 items-center gap-2 py-10 lg:grid-cols-3"
-                >
-                    <div class="flex lg:col-start-2 lg:justify-center">
-                        <svg
-                            class="h-12 w-auto text-white lg:h-16 lg:text-[#FF2D20]"
-                            viewBox="0 0 62 65"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                        >
-                            <path
-                                d="M61.8548 14.6253C61.8778 14.7102 61.8895 14.7978 61.8897 14.8858V28.5615C61.8898 28.737 61.8434 28.9095 61.7554 29.0614C61.6675 29.2132 61.5409 29.3392 61.3887 29.4265L49.9104 36.0351V49.1337C49.9104 49.4902 49.7209 49.8192 49.4118 49.9987L25.4519 63.7916C25.3971 63.8227 25.3372 63.8427 25.2774 63.8639C25.255 63.8714 25.2338 63.8851 25.2101 63.8913C25.0426 63.9354 24.8666 63.9354 24.6991 63.8913C24.6716 63.8838 24.6467 63.8689 24.6205 63.8589C24.5657 63.8389 24.5084 63.8215 24.456 63.7916L0.501061 49.9987C0.348882 49.9113 0.222437 49.7853 0.134469 49.6334C0.0465019 49.4816 0.000120578 49.3092 0 49.1337L0 8.10652C0 8.01678 0.0124642 7.92953 0.0348998 7.84477C0.0423783 7.8161 0.0598282 7.78993 0.0697995 7.76126C0.0884958 7.70891 0.105946 7.65531 0.133367 7.6067C0.152063 7.5743 0.179485 7.54812 0.20192 7.51821C0.230588 7.47832 0.256763 7.43719 0.290416 7.40229C0.319084 7.37362 0.356476 7.35243 0.388883 7.32751C0.425029 7.29759 0.457436 7.26518 0.498568 7.2415L12.4779 0.345059C12.6296 0.257786 12.8015 0.211853 12.9765 0.211853C13.1515 0.211853 13.3234 0.257786 13.475 0.345059L25.4531 7.2415H25.4556C25.4955 7.26643 25.5292 7.29759 25.5653 7.32626C25.5977 7.35119 25.6339 7.37362 25.6625 7.40104C25.6974 7.43719 25.7224 7.47832 25.7523 7.51821C25.7735 7.54812 25.8021 7.5743 25.8196 7.6067C25.8483 7.65656 25.8645 7.70891 25.8844 7.76126C25.8944 7.78993 25.9118 7.8161 25.9193 7.84602C25.9423 7.93096 25.954 8.01853 25.9542 8.10652V33.7317L35.9355 27.9844V14.8846C35.9355 14.7973 35.948 14.7088 35.9704 14.6253C35.9792 14.5954 35.9954 14.5692 36.0053 14.5405C36.0253 14.4882 36.0427 14.4346 36.0702 14.386C36.0888 14.3536 36.1163 14.3274 36.1375 14.2975C36.1674 14.2576 36.1923 14.2165 36.2272 14.1816C36.2559 14.1529 36.292 14.1317 36.3244 14.1068C36.3618 14.0769 36.3942 14.0445 36.4341 14.0208L48.4147 7.12434C48.5663 7.03694 48.7383 6.99094 48.9133 6.99094C49.0883 6.99094 49.2602 7.03694 49.4118 7.12434L61.3899 14.0208C61.4323 14.0457 61.4647 14.0769 61.5021 14.1055C61.5333 14.1305 61.5694 14.1529 61.5981 14.1803C61.633 14.2165 61.6579 14.2576 61.6878 14.2975C61.7103 14.3274 61.7377 14.3536 61.7551 14.386C61.7838 14.4346 61.8 14.4882 61.8199 14.5405C61.8312 14.5692 61.8474 14.5954 61.8548 14.6253ZM59.893 27.9844V16.6121L55.7013 19.0252L49.9104 22.3593V33.7317L59.8942 27.9844H59.893ZM47.9149 48.5566V37.1768L42.2187 40.4299L25.953 49.7133V61.2003L47.9149 48.5566ZM1.99677 9.83281V48.5566L23.9562 61.199V49.7145L12.4841 43.2219L12.4804 43.2194L12.4754 43.2169C12.4368 43.1945 12.4044 43.1621 12.3682 43.1347C12.3371 43.1097 12.3009 43.0898 12.2735 43.0624L12.271 43.0586C12.2386 43.0275 12.2162 42.9888 12.1887 42.9539C12.1638 42.9203 12.1339 42.8916 12.114 42.8567L12.1127 42.853C12.0903 42.8156 12.0766 42.7707 12.0604 42.7283C12.0442 42.6909 12.023 42.656 12.013 42.6161C12.0005 42.5688 11.998 42.5177 11.9931 42.4691C11.9881 42.4317 11.9781 42.3943 11.9781 42.3569V15.5801L6.18848 12.2446L1.99677 9.83281ZM12.9777 2.36177L2.99764 8.10652L12.9752 13.8513L22.9541 8.10527L12.9752 2.36177H12.9777ZM18.1678 38.2138L23.9574 34.8809V9.83281L19.7657 12.2459L13.9749 15.5801V40.6281L18.1678 38.2138ZM48.9133 9.14105L38.9344 14.8858L48.9133 20.6305L58.8909 14.8846L48.9133 9.14105ZM47.9149 22.3593L42.124 19.0252L37.9323 16.6121V27.9844L43.7219 31.3174L47.9149 33.7317V22.3593ZM24.9533 47.987L39.59 39.631L46.9065 35.4555L36.9352 29.7145L25.4544 36.3242L14.9907 42.3482L24.9533 47.987Z"
-                                fill="currentColor"
-                            />
-                        </svg>
+    <Head title="Welcome to Kawa Lipa" />
+
+    <div class="min-h-screen relative overflow-hidden bg-gradient-to-b from-[#fff5f6] via-[#ffeef1] to-[#ffdce2] text-rose-900/90 antialiased font-sans scroll-smooth">
+        
+        <div class="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+            <div class="absolute inset-0 opacity-40 bg-[radial-gradient(#ffccd5_1px,transparent_1px)] [background-size:24px_24px]"></div>
+            
+            <div ref="butterflyContainer" class="absolute inset-0 w-full h-full overflow-hidden"></div>
+
+            <div class="absolute inset-x-0 top-[800px] w-full h-64 opacity-20">
+                <svg class="w-full h-full min-h-[150px]" xmlns="http://www.w3.org/2000/svg" viewBox="0 24 150 28" preserveAspectRatio="none">
+                    <path d="M-160 44c30 0 58-18 88-18s58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" fill="url(#bg-wave-grad-1)" class="wave-back" />
+                    <defs>
+                        <linearGradient id="bg-wave-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f43f5e" />
+                            <stop offset="100%" stop-color="#fda4af" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+            <div class="absolute inset-x-0 bottom-40 w-full h-80 opacity-25 transform rotate-180">
+                <svg class="w-full h-full" xmlns="http://www.w3.org/2000/svg" viewBox="0 24 150 28" preserveAspectRatio="none">
+                    <path d="M-160 44c30 0 58-18 88-18s58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" fill="url(#bg-wave-grad-2)" class="wave-front" />
+                    <defs>
+                        <linearGradient id="bg-wave-grad-2" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#f43f5e" />
+                            <stop offset="100%" stop-color="#ec4899" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            </div>
+
+            <div class="absolute top-[680px] left-[5%] opacity-15 animate-float-slow">
+                <svg width="70" height="70" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" fill="white" stroke="#f43f5e" stroke-width="8"/>
+                    <path d="M50 25C35 25 28 38 32 48C36 58 50 62 56 54C62 46 54 38 46 40C40 41 38 48 42 51C45 53 49 51 49 48" stroke="#f43f5e" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+            </div>
+            <div class="absolute top-[1600px] right-[4%] opacity-20 animate-float-medium">
+                <svg width="90" height="90" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="45" fill="white" stroke="#f43f5e" stroke-width="8"/>
+                    <path d="M50 25C35 25 28 38 32 48C36 58 50 62 56 54C62 46 54 38 46 40C40 41 38 48 42 51C45 53 49 51 49 48" stroke="#f43f5e" stroke-width="6" stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <div class="absolute top-[2400px] left-[3%] opacity-15 hidden lg:block animate-pulse-gentle">
+                <div class="relative w-32 h-32">
+                    <div class="smoke-line position-1"></div>
+                    <div class="smoke-line position-2"></div>
+                    <div class="smoke-line position-3"></div>
+                    <svg class="absolute bottom-2 left-0" width="120" height="70" viewBox="0 0 120 70" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M10 5C10 5 15 45 60 45C105 45 110 5 110 5H10Z" fill="#f43f5e"/>
+                        <path d="M40 45C40 45 42 58 60 58C78 58 80 45 80 45H40Z" fill="#e11d48"/>
+                        <line x1="15" y1="12" x2="105" y2="12" stroke="white" stroke-width="4"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <header class="w-full bg-rose-500 shadow-md sticky top-0 z-40 overflow-hidden select-none pb-5">
+            <div class="px-4 sm:px-6 lg:px-12 py-4 flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
+                <div class="flex items-center gap-3 shrink-0">
+                    <img src="/storage/images/logo_kawa.png" alt="Kawa Lipa Logo" class="h-14 w-14 object-contain rounded-2xl p-0.5" />
+                    <div class="flex flex-col">
+                        <span class="text-xl font-black tracking-tight text-white drop-shadow-xs">KAWA <span class="text-pink-200">LIPA</span></span>
+                        <span class="text-[9px] text-pink-100 font-bold uppercase tracking-widest drop-shadow-xs">Premium Experience Platform</span>
                     </div>
-                    <nav v-if="canLogin" class="-mx-3 flex flex-1 justify-end">
-                        <Link
-                            v-if="$page.props.auth.user"
-                            :href="route('dashboard')"
-                            class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
-                        >
-                            Dashboard
-                        </Link>
+                </div>
 
-                        <template v-else>
-                            <Link
-                                :href="route('login')"
-                                class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
-                            >
-                                Log in
-                            </Link>
+                <nav class="flex items-center gap-1 bg-white/10 backdrop-blur-md p-1 rounded-2xl border border-white/10 text-xs font-extrabold uppercase tracking-wider text-white">
+                    <button @click="scrollToSection(menuSection)" class="px-4 py-2 rounded-xl hover:bg-white/10 transition-all">Menus</button>
+                    <button @click="scrollToSection(updatesSection)" class="px-4 py-2 rounded-xl hover:bg-white/10 transition-all">Updates ({{ filteredAnnouncements.length }})</button>
+                    <button @click="scrollToSection(gallerySection)" class="px-4 py-2 rounded-xl hover:bg-white/10 transition-all">Gallery</button>
+                    <button @click="scrollToSection(aboutSection)" class="px-4 py-2 rounded-xl hover:bg-white/10 transition-all">About Us</button>
+                </nav>
 
-                            <Link
-                                v-if="canRegister"
-                                :href="route('register')"
-                                class="rounded-md px-3 py-2 text-black ring-1 ring-transparent transition hover:text-black/70 focus:outline-none focus-visible:ring-[#FF2D20] dark:text-white dark:hover:text-white/80 dark:focus-visible:ring-white"
-                            >
-                                Register
-                            </Link>
-                        </template>
-                    </nav>
-                </header>
+                <div class="relative w-full max-w-xs transform hover:scale-[1.01] transition-all">
+                    <input v-model="searchQuery" type="text" placeholder="Search menu, broadcasts..." 
+                           class="w-full pl-5 pr-10 py-2 bg-white/95 border-0 rounded-xl text-rose-950 text-xs font-semibold focus:ring-4 focus:ring-pink-300/50 focus:bg-white transition-all placeholder:text-rose-300" />
+                    <span class="absolute right-3 top-2.5 text-xs filter grayscale opacity-70">🔍</span>
+                </div>
+            </div>
 
-                <main class="mt-6">
-                    <div class="grid gap-6 lg:grid-cols-2 lg:gap-8">
-                        <a
-                            href="https://laravel.com/docs"
-                            id="docs-card"
-                            class="flex flex-col items-start gap-6 overflow-hidden rounded-lg bg-white p-6 shadow-[0px_14px_34px_0px_rgba(0,0,0,0.08)] ring-1 ring-white/[0.05] transition duration-300 hover:text-black/70 hover:ring-black/20 focus:outline-none focus-visible:ring-[#FF2D20] md:row-span-3 lg:p-10 lg:pb-10 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:text-white/70 dark:hover:ring-zinc-700 dark:focus-visible:ring-[#FF2D20]"
-                        >
-                            <div
-                                id="screenshot-container"
-                                class="relative flex w-full flex-1 items-stretch"
-                            >
-                                <img
-                                    src="https://laravel.com/assets/img/welcome/docs-light.svg"
-                                    alt="Laravel documentation screenshot"
-                                    class="aspect-video h-full w-full flex-1 rounded-[10px] object-cover object-top drop-shadow-[0px_4px_34px_rgba(0,0,0,0.06)] dark:hidden"
-                                    @error="handleImageError"
-                                />
-                                <img
-                                    src="https://laravel.com/assets/img/welcome/docs-dark.svg"
-                                    alt="Laravel documentation screenshot"
-                                    class="hidden aspect-video h-full w-full flex-1 rounded-[10px] object-cover object-top drop-shadow-[0px_4px_34px_rgba(0,0,0,0.25)] dark:block"
-                                />
-                                <div
-                                    class="absolute -bottom-16 -left-16 h-40 w-[calc(100%+8rem)] bg-gradient-to-b from-transparent via-white to-white dark:via-zinc-900 dark:to-zinc-900"
-                                ></div>
-                            </div>
+            <div class="absolute bottom-0 left-0 w-full h-8 pointer-events-none overflow-hidden">
+                <svg class="waves" xmlns="http://www.w3.org/2000/svg" viewBox="0 24 150 28" preserveAspectRatio="none" shape-rendering="auto">
+                    <defs>
+                        <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" />
+                    </defs>
+                    <g class="parallax">
+                        <use href="#gentle-wave" x="48" y="0" fill="rgba(255, 228, 230, 0.25)" class="wave-back" />
+                        <use href="#gentle-wave" x="48" y="5" fill="rgba(255, 228, 230, 0.45)" class="wave-front" />
+                    </g>
+                </svg>
+            </div>
+        </header>
 
-                            <div
-                                class="relative flex items-center gap-6 lg:items-end"
-                            >
-                                <div
-                                    id="docs-card-content"
-                                    class="flex items-start gap-6 lg:flex-col"
-                                >
-                                    <div
-                                        class="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#FF2D20]/10 sm:size-16"
-                                    >
-                                        <svg
-                                            class="size-5 sm:size-6"
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <path
-                                                fill="#FF2D20"
-                                                d="M23 4a1 1 0 0 0-1.447-.894L12.224 7.77a.5.5 0 0 1-.448 0L2.447 3.106A1 1 0 0 0 1 4v13.382a1.99 1.99 0 0 0 1.105 1.79l9.448 4.728c.14.065.293.1.447.1.154-.005.306-.04.447-.105l9.453-4.724a1.99 1.99 0 0 0 1.1-1.789V4ZM3 6.023a.25.25 0 0 1 .362-.223l7.5 3.75a.251.251 0 0 1 .138.223v11.2a.25.25 0 0 1-.362.224l-7.5-3.75a.25.25 0 0 1-.138-.22V6.023Zm18 11.2a.25.25 0 0 1-.138.224l-7.5 3.75a.249.249 0 0 1-.329-.099.249.249 0 0 1-.033-.12V9.772a.251.251 0 0 1 .138-.224l7.5-3.75a.25.25 0 0 1 .362.224v11.2Z"
-                                            />
-                                            <path
-                                                fill="#FF2D20"
-                                                d="m3.55 1.893 8 4.048a1.008 1.008 0 0 0 .9 0l8-4.048a1 1 0 0 0-.9-1.785l-7.322 3.706a.506.506 0 0 1-.452 0L4.454.108a1 1 0 0 0-.9 1.785H3.55Z"
-                                            />
-                                        </svg>
-                                    </div>
+        <div class="w-full h-[580px] relative flex items-center justify-center overflow-hidden border-b border-pink-100 bg-transparent">
+            <img src="/storage/wallpaper/kawa_wallpaper.png" alt="Kawa Lipa Wallpaper" class="absolute inset-0 w-full h-full object-cover" />
+            <div class="absolute inset-0 bg-gradient-to-t from-[#fff5f6] via-transparent to-black/10 z-1"></div>
+            <div class="relative z-10 text-center max-w-2xl mx-auto px-4 drop-shadow-md">
+                <h1 class="text-4xl font-black text-white tracking-tight sm:text-6xl uppercase bg-rose-950/70 backdrop-blur-xs px-6 py-3 rounded-3xl inline-block border border-white/20">Discover Our Showcase</h1>
+                <p class="mt-4 text-sm sm:text-base text-white font-extrabold tracking-wide bg-rose-950/70 backdrop-blur-xs px-4 py-2 rounded-xl inline-block">Where Japanese inspired flavors meet modern comfort.</p>
+            </div>
+        </div>
 
-                                    <div class="pt-3 sm:pt-5 lg:pt-0">
-                                        <h2
-                                            class="text-xl font-semibold text-black dark:text-white"
-                                        >
-                                            Documentation
-                                        </h2>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-24 relative z-10">
 
-                                        <p class="mt-4 text-sm/relaxed">
-                                            Laravel has wonderful documentation
-                                            covering every aspect of the
-                                            framework. Whether you are a
-                                            newcomer or have prior experience
-                                            with Laravel, we recommend reading
-                                            our documentation from beginning to
-                                            end.
-                                        </p>
-                                    </div>
+            
+<section ref="menuSection" class="scroll-mt-6 group/slider relative">
+    <div class="text-center mb-8">
+        <h2 class="text-2xl font-black uppercase text-rose-950 tracking-tight">KAWA LIPA MENU</h2>
+        <p class="text-xs text-rose-400 font-bold mt-1">Fresh, authentic Japanese dishes crafted daily.</p>
+    </div>
+
+    <div class="space-y-8">
+        <div class="flex flex-wrap items-center justify-center gap-2">
+            <button @click="selectedCategory = 'All'" :class="[selectedCategory === 'All' ? 'bg-pink-400 text-white' : 'bg-white text-rose-500 hover:bg-rose-50/50 border border-pink-100/80', 'px-4 py-1.5 rounded-xl text-xs font-extrabold shadow-xs transition-all flex items-center gap-1.5']">
+                <span>All Categories</span>
+                <span :class="[selectedCategory === 'All' ? 'bg-white text-pink-500' : 'bg-rose-50 text-rose-500', 'px-1.5 py-0.5 rounded-md text-[10px] font-black']">
+                    {{ getAllItemsCount() }}
+                </span>
+            </button>
+            
+            <button v-for="cat in categories" :key="cat" @click="selectedCategory = cat" :class="[selectedCategory === cat ? 'bg-pink-400 text-white' : 'bg-white text-rose-500 hover:bg-rose-50/50 border border-pink-100/80', 'px-4 py-1.5 rounded-xl text-xs font-extrabold shadow-xs transition-all capitalize flex items-center gap-1.5']">
+                <span>{{ cat }}</span>
+                <span :class="[selectedCategory === cat ? 'bg-white text-pink-500' : 'bg-rose-50 text-rose-500', 'px-1.5 py-0.5 rounded-md text-[10px] font-black']">
+                    {{ getCategoryCount(cat) }}
+                </span>
+            </button>
+        </div>
+
+        <div class="relative px-4">
+            <template v-if="filteredMenus.length > 0">
+                <button @click="slide(menuSliderRef, 'left')" 
+                        :class="[filteredMenus.length > 6 ? 'flex' : 'flex lg:hidden']"
+                        class="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 text-white w-10 h-10 rounded-full items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">‹</button>
+                <button @click="slide(menuSliderRef, 'right')" 
+                        :class="[filteredMenus.length > 6 ? 'flex' : 'flex lg:hidden']"
+                        class="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 text-white w-10 h-10 rounded-full items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">›</button>
+            </template>
+
+            <div ref="menuSliderRef" class="overflow-x-auto custom-pink-scrollbar snap-x snap-mandatory py-2 pb-5 scroll-smooth">
+                <template v-if="filteredMenus.length > 0">
+                    <div :class="[
+                        filteredMenus.length <= 6 
+                            ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' 
+                            : 'grid grid-flow-col grid-rows-2 gap-6 auto-cols-[calc(100%-12px)] sm:auto-cols-[calc(50%-12px)] lg:auto-cols-[calc(33.333%-16px)]'
+                    ]">
+                        <div v-for="item in filteredMenus" :key="item.id" @click="openMenuModal(item)"
+                             class="w-full shrink-0 snap-start bg-white/70 backdrop-blur-md rounded-3xl border border-pink-100 shadow-xs overflow-hidden flex flex-col hover:shadow-lg hover:border-pink-300 hover:-translate-y-0.5 cursor-pointer transition-all duration-300 active:scale-95 select-none">
+                            
+                            <div class="w-full h-48 bg-rose-100/40 overflow-hidden relative border-b border-pink-100/60">
+                                <img v-if="item.image_path" :src="item.image_path.startsWith('http') ? item.image_path : `/storage/${item.image_path}`" :alt="item.name" class="w-full h-full object-cover transition duration-500 hover:scale-105" />
+                                <div v-else class="w-full h-full flex flex-col items-center justify-center text-rose-300 gap-1.5">
+                                    <span>🍱</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-rose-400/60">No Image Uploaded</span>
                                 </div>
-
-                                <svg
-                                    class="size-6 shrink-0 stroke-[#FF2D20]"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke-width="1.5"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                                    />
-                                </svg>
-                            </div>
-                        </a>
-
-                        <a
-                            href="https://laracasts.com"
-                            class="flex items-start gap-4 rounded-lg bg-white p-6 shadow-[0px_14px_34px_0px_rgba(0,0,0,0.08)] ring-1 ring-white/[0.05] transition duration-300 hover:text-black/70 hover:ring-black/20 focus:outline-none focus-visible:ring-[#FF2D20] lg:pb-10 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:text-white/70 dark:hover:ring-zinc-700 dark:focus-visible:ring-[#FF2D20]"
-                        >
-                            <div
-                                class="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#FF2D20]/10 sm:size-16"
-                            >
-                                <svg
-                                    class="size-5 sm:size-6"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <g fill="#FF2D20">
-                                        <path
-                                            d="M24 8.25a.5.5 0 0 0-.5-.5H.5a.5.5 0 0 0-.5.5v12a2.5 2.5 0 0 0 2.5 2.5h19a2.5 2.5 0 0 0 2.5-2.5v-12Zm-7.765 5.868a1.221 1.221 0 0 1 0 2.264l-6.626 2.776A1.153 1.153 0 0 1 8 18.123v-5.746a1.151 1.151 0 0 1 1.609-1.035l6.626 2.776ZM19.564 1.677a.25.25 0 0 0-.177-.427H15.6a.106.106 0 0 0-.072.03l-4.54 4.543a.25.25 0 0 0 .177.427h3.783c.027 0 .054-.01.073-.03l4.543-4.543ZM22.071 1.318a.047.047 0 0 0-.045.013l-4.492 4.492a.249.249 0 0 0 .038.385.25.25 0 0 0 .14.042h5.784a.5.5 0 0 0 .5-.5v-2a2.5 2.5 0 0 0-1.925-2.432ZM13.014 1.677a.25.25 0 0 0-.178-.427H9.101a.106.106 0 0 0-.073.03l-4.54 4.543a.25.25 0 0 0 .177.427H8.4a.106.106 0 0 0 .073-.03l4.54-4.543ZM6.513 1.677a.25.25 0 0 0-.177-.427H2.5A2.5 2.5 0 0 0 0 3.75v2a.5.5 0 0 0 .5.5h1.4a.106.106 0 0 0 .073-.03l4.54-4.543Z"
-                                        />
-                                    </g>
-                                </svg>
                             </div>
 
-                            <div class="pt-3 sm:pt-5">
-                                <h2
-                                    class="text-xl font-semibold text-black dark:text-white"
-                                >
-                                    Laracasts
-                                </h2>
-
-                                <p class="mt-4 text-sm/relaxed">
-                                    Laracasts offers thousands of video
-                                    tutorials on Laravel, PHP, and JavaScript
-                                    development. Check them out, see for
-                                    yourself, and massively level up your
-                                    development skills in the process.
-                                </p>
-                            </div>
-
-                            <svg
-                                class="size-6 shrink-0 self-center stroke-[#FF2D20]"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="1.5"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                                />
-                            </svg>
-                        </a>
-
-                        <a
-                            href="https://laravel-news.com"
-                            class="flex items-start gap-4 rounded-lg bg-white p-6 shadow-[0px_14px_34px_0px_rgba(0,0,0,0.08)] ring-1 ring-white/[0.05] transition duration-300 hover:text-black/70 hover:ring-black/20 focus:outline-none focus-visible:ring-[#FF2D20] lg:pb-10 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:text-white/70 dark:hover:ring-zinc-700 dark:focus-visible:ring-[#FF2D20]"
-                        >
-                            <div
-                                class="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#FF2D20]/10 sm:size-16"
-                            >
-                                <svg
-                                    class="size-5 sm:size-6"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <g fill="#FF2D20">
-                                        <path
-                                            d="M8.75 4.5H5.5c-.69 0-1.25.56-1.25 1.25v4.75c0 .69.56 1.25 1.25 1.25h3.25c.69 0 1.25-.56 1.25-1.25V5.75c0-.69-.56-1.25-1.25-1.25Z"
-                                        />
-                                        <path
-                                            d="M24 10a3 3 0 0 0-3-3h-2V2.5a2 2 0 0 0-2-2H2a2 2 0 0 0-2 2V20a3.5 3.5 0 0 0 3.5 3.5h17A3.5 3.5 0 0 0 24 20V10ZM3.5 21.5A1.5 1.5 0 0 1 2 20V3a.5.5 0 0 1 .5-.5h14a.5.5 0 0 1 .5.5v17c0 .295.037.588.11.874a.5.5 0 0 1-.484.625L3.5 21.5ZM22 20a1.5 1.5 0 1 1-3 0V9.5a.5.5 0 0 1 .5-.5H21a1 1 0 0 1 1 1v10Z"
-                                        />
-                                        <path
-                                            d="M12.751 6.047h2a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75h-2A.75.75 0 0 1 12 7.3v-.5a.75.75 0 0 1 .751-.753ZM12.751 10.047h2a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75h-2A.75.75 0 0 1 12 11.3v-.5a.75.75 0 0 1 .751-.753ZM4.751 14.047h10a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75h-10A.75.75 0 0 1 4 15.3v-.5a.75.75 0 0 1 .751-.753ZM4.75 18.047h7.5a.75.75 0 0 1 .75.75v.5a.75.75 0 0 1-.75.75h-7.5A.75.75 0 0 1 4 19.3v-.5a.75.75 0 0 1 .75-.753Z"
-                                        />
-                                    </g>
-                                </svg>
-                            </div>
-
-                            <div class="pt-3 sm:pt-5">
-                                <h2
-                                    class="text-xl font-semibold text-black dark:text-white"
-                                >
-                                    Laravel News
-                                </h2>
-
-                                <p class="mt-4 text-sm/relaxed">
-                                    Laravel News is a community driven portal
-                                    and newsletter aggregating all of the latest
-                                    and most important news in the Laravel
-                                    ecosystem, including new package releases
-                                    and tutorials.
-                                </p>
-                            </div>
-
-                            <svg
-                                class="size-6 shrink-0 self-center stroke-[#FF2D20]"
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="1.5"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M4.5 12h15m0 0l-6.75-6.75M19.5 12l-6.75 6.75"
-                                />
-                            </svg>
-                        </a>
-
-                        <div
-                            class="flex items-start gap-4 rounded-lg bg-white p-6 shadow-[0px_14px_34px_0px_rgba(0,0,0,0.08)] ring-1 ring-white/[0.05] lg:pb-10 dark:bg-zinc-900 dark:ring-zinc-800"
-                        >
-                            <div
-                                class="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#FF2D20]/10 sm:size-16"
-                            >
-                                <svg
-                                    class="size-5 sm:size-6"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <g fill="#FF2D20">
-                                        <path
-                                            d="M16.597 12.635a.247.247 0 0 0-.08-.237 2.234 2.234 0 0 1-.769-1.68c.001-.195.03-.39.084-.578a.25.25 0 0 0-.09-.267 8.8 8.8 0 0 0-4.826-1.66.25.25 0 0 0-.268.181 2.5 2.5 0 0 1-2.4 1.824.045.045 0 0 0-.045.037 12.255 12.255 0 0 0-.093 3.86.251.251 0 0 0 .208.214c2.22.366 4.367 1.08 6.362 2.118a.252.252 0 0 0 .32-.079 10.09 10.09 0 0 0 1.597-3.733ZM13.616 17.968a.25.25 0 0 0-.063-.407A19.697 19.697 0 0 0 8.91 15.98a.25.25 0 0 0-.287.325c.151.455.334.898.548 1.328.437.827.981 1.594 1.619 2.28a.249.249 0 0 0 .32.044 29.13 29.13 0 0 0 2.506-1.99ZM6.303 14.105a.25.25 0 0 0 .265-.274 13.048 13.048 0 0 1 .205-4.045.062.062 0 0 0-.022-.07 2.5 2.5 0 0 1-.777-.982.25.25 0 0 0-.271-.149 11 11 0 0 0-5.6 2.815.255.255 0 0 0-.075.163c-.008.135-.02.27-.02.406.002.8.084 1.598.246 2.381a.25.25 0 0 0 .303.193 19.924 19.924 0 0 1 5.746-.438ZM9.228 20.914a.25.25 0 0 0 .1-.393 11.53 11.53 0 0 1-1.5-2.22 12.238 12.238 0 0 1-.91-2.465.248.248 0 0 0-.22-.187 18.876 18.876 0 0 0-5.69.33.249.249 0 0 0-.179.336c.838 2.142 2.272 4 4.132 5.353a.254.254 0 0 0 .15.048c1.41-.01 2.807-.282 4.117-.802ZM18.93 12.957l-.005-.008a.25.25 0 0 0-.268-.082 2.21 2.21 0 0 1-.41.081.25.25 0 0 0-.217.2c-.582 2.66-2.127 5.35-5.75 7.843a.248.248 0 0 0-.09.299.25.25 0 0 0 .065.091 28.703 28.703 0 0 0 2.662 2.12.246.246 0 0 0 .209.037c2.579-.701 4.85-2.242 6.456-4.378a.25.25 0 0 0 .048-.189 13.51 13.51 0 0 0-2.7-6.014ZM5.702 7.058a.254.254 0 0 0 .2-.165A2.488 2.488 0 0 1 7.98 5.245a.093.093 0 0 0 .078-.062 19.734 19.734 0 0 1 3.055-4.74.25.25 0 0 0-.21-.41 12.009 12.009 0 0 0-10.4 8.558.25.25 0 0 0 .373.281 12.912 12.912 0 0 1 4.826-1.814ZM10.773 22.052a.25.25 0 0 0-.28-.046c-.758.356-1.55.635-2.365.833a.25.25 0 0 0-.022.48c1.252.43 2.568.65 3.893.65.1 0 .2 0 .3-.008a.25.25 0 0 0 .147-.444c-.526-.424-1.1-.917-1.673-1.465ZM18.744 8.436a.249.249 0 0 0 .15.228 2.246 2.246 0 0 1 1.352 2.054c0 .337-.08.67-.23.972a.25.25 0 0 0 .042.28l.007.009a15.016 15.016 0 0 1 2.52 4.6.25.25 0 0 0 .37.132.25.25 0 0 0 .096-.114c.623-1.464.944-3.039.945-4.63a12.005 12.005 0 0 0-5.78-10.258.25.25 0 0 0-.373.274c.547 2.109.85 4.274.901 6.453ZM9.61 5.38a.25.25 0 0 0 .08.31c.34.24.616.561.8.935a.25.25 0 0 0 .3.127.631.631 0 0 1 .206-.034c2.054.078 4.036.772 5.69 1.991a.251.251 0 0 0 .267.024c.046-.024.093-.047.141-.067a.25.25 0 0 0 .151-.23A29.98 29.98 0 0 0 15.957.764a.25.25 0 0 0-.16-.164 11.924 11.924 0 0 0-2.21-.518.252.252 0 0 0-.215.076A22.456 22.456 0 0 0 9.61 5.38Z"
-                                        />
-                                    </g>
-                                </svg>
-                            </div>
-
-                            <div class="pt-3 sm:pt-5">
-                                <h2
-                                    class="text-xl font-semibold text-black dark:text-white"
-                                >
-                                    Vibrant Ecosystem
-                                </h2>
-
-                                <p class="mt-4 text-sm/relaxed">
-                                    Laravel's robust library of first-party
-                                    tools and libraries, such as
-                                    <a
-                                        href="https://forge.laravel.com"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white dark:focus-visible:ring-[#FF2D20]"
-                                        >Forge</a
-                                    >,
-                                    <a
-                                        href="https://vapor.laravel.com"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Vapor</a
-                                    >,
-                                    <a
-                                        href="https://nova.laravel.com"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Nova</a
-                                    >,
-                                    <a
-                                        href="https://envoyer.io"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Envoyer</a
-                                    >, and
-                                    <a
-                                        href="https://herd.laravel.com"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Herd</a
-                                    >
-                                    help you take your projects to the next
-                                    level. Pair them with powerful open source
-                                    libraries like
-                                    <a
-                                        href="https://laravel.com/docs/billing"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Cashier</a
-                                    >,
-                                    <a
-                                        href="https://laravel.com/docs/dusk"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Dusk</a
-                                    >,
-                                    <a
-                                        href="https://laravel.com/docs/broadcasting"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Echo</a
-                                    >,
-                                    <a
-                                        href="https://laravel.com/docs/horizon"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Horizon</a
-                                    >,
-                                    <a
-                                        href="https://laravel.com/docs/sanctum"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Sanctum</a
-                                    >,
-                                    <a
-                                        href="https://laravel.com/docs/telescope"
-                                        class="rounded-sm underline hover:text-black focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF2D20] dark:hover:text-white"
-                                        >Telescope</a
-                                    >, and more.
-                                </p>
+                            <div class="p-6 flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between gap-2 mb-3">
+                                        <span class="text-[10px] font-extrabold uppercase bg-white border border-pink-200 text-pink-500 px-2.5 py-0.5 rounded-lg tracking-wider">
+                                            {{ getCategoryName(item) }}
+                                        </span>
+                                        <span class="text-base font-black text-rose-500">₱{{ item.price || '0.00' }}</span>
+                                    </div>
+                                    <h3 class="text-base font-bold text-rose-950 tracking-tight mb-1.5">{{ item.name }}</h3>
+                                    <p class="text-xs text-rose-700/60 line-clamp-2 font-medium leading-relaxed">{{ item.description || 'No description assigned yet.' }}</p>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </main>
+                </template>
+                <div v-if="filteredMenus.length === 0" class="text-center py-12 text-rose-300 font-medium text-xs">No matching items found.</div>
+            </div>
+        </div>
+    </div>
+</section>
 
-                <footer
-                    class="py-16 text-center text-sm text-black dark:text-white/70"
-                >
-                    Laravel v{{ laravelVersion }} (PHP v{{ phpVersion }})
-                </footer>
+  <section ref="updatesSection" class="scroll-mt-6 border-t border-pink-200/40 pt-16">
+    <div class="text-center mb-8">
+        <h2 class="text-2xl font-black uppercase text-rose-950 tracking-tight">Platform Broadcasts</h2>
+        <p class="text-xs text-rose-400 font-bold mt-1">Live announcements, schedules, and event updates.</p>
+    </div>
+
+    <div class="relative px-4 max-w-6xl mx-auto">
+        <template v-if="filteredAnnouncements.length > 0">
+            <button @click="slide(announcementSliderRef, 'left')" 
+                    class="absolute -left-2 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 border border-rose-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">‹</button>
+            <button @click="slide(announcementSliderRef, 'right')" 
+                    class="absolute -right-2 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 border border-rose-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">›</button>
+        </template>
+
+        <div ref="announcementSliderRef" class="flex gap-6 overflow-x-auto custom-pink-scrollbar snap-x snap-mandatory py-2 pb-6 scroll-smooth">
+            <div v-for="ann in filteredAnnouncements" :key="ann.id" 
+                 class="w-full sm:w-[calc(50%-12px)] shrink-0 snap-start bg-white p-7 rounded-3xl shadow-xs border border-neutral-200/80 text-black flex flex-col justify-between transition-all duration-300 hover:shadow-md hover:border-pink-300 hover:-translate-y-0.5">
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between border-b border-neutral-100 pb-3">
+                        <span class="text-[10px] text-pink-600 font-black uppercase tracking-widest bg-white border border-pink-100 px-3 py-1 rounded-xl shadow-3xs">
+                            Broadcast Post
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            <img src="/storage/images/logo_kawa.png" alt="KAWA LIPA Logo" class="w-7 h-7 rounded-lg object-cover shadow-3xs" />
+                            <span class="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">KAWA LIPA</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-lg font-black text-black tracking-tight line-clamp-1">{{ ann.title }}</h3>
+                        <p class="text-xs text-neutral-700 line-clamp-4 font-medium leading-relaxed whitespace-pre-line">{{ ann.content }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div v-if="filteredAnnouncements.length === 0" class="text-center py-12 text-rose-300 font-medium text-xs">No recent announcements found.</div>
+    </div>
+</section>
+
+<section ref="gallerySection" class="scroll-mt-6 border-t border-pink-200/40 pt-16">
+    <div class="text-center mb-8">
+        <h2 class="text-2xl font-black uppercase text-rose-950 tracking-tight">Our Gallery Showcase</h2>
+        <p class="text-xs text-rose-400 font-bold mt-1">Glimpses of premium vibes and traditional moments.</p>
+    </div>
+
+    <div class="relative px-12">
+        <template v-if="gallery && gallery.length > 4">
+            <button @click="navigateGallery('left')" class="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">‹</button>
+            <button @click="navigateGallery('right')" class="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-rose-500 hover:bg-rose-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-md font-bold transition-all active:scale-90 select-none">›</button>
+        </template>
+
+        <div ref="gallerySliderRef" class="overflow-x-auto py-3 snap-x snap-mandatory custom-pink-scrollbar scroll-smooth">
+            <template v-if="gallery && gallery.length > 0">
+                <div class="grid grid-flow-col grid-rows-2 gap-4 auto-cols-[calc(50%-8px)] sm:auto-cols-[calc(25%-12px)]">
+                    <div v-for="media in gallery" :key="media.id" @click="openGalleryModal(media)"
+                         class="w-full shrink-0 aspect-square bg-white rounded-2xl overflow-hidden relative border border-pink-100 shadow-xs group cursor-pointer transition-all active:scale-95 select-none snap-start">
+                        
+                        <img v-if="media.media_type === 'image'" :src="`/storage/${media.file_path}`" class="w-full h-full object-cover group-hover:scale-105 transition duration-500" :alt="media.title || 'Showcase asset'" />
+                        
+                        <div v-else class="w-full h-full relative bg-rose-950/20 flex items-center justify-center overflow-hidden">
+                            <img v-if="media.thumbnail_path" :src="`/storage/${media.thumbnail_path}`" class="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:scale-105 transition duration-500" />
+                            <video v-else-if="media.file_path" :src="`/storage/${media.file_path}#t=0.1`" preload="metadata" class="absolute inset-0 w-full h-full object-cover opacity-80 pointer-events-none group-hover:scale-105 transition duration-500" muted playsinline></video>
+                            <div v-else class="absolute inset-0 bg-rose-200/50 flex flex-col items-center justify-center text-rose-400">
+                                <span class="text-xl">🎬</span>
+                            </div>
+                            <div class="z-10 w-12 h-12 bg-black/60 backdrop-blur-xs rounded-full flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform text-white text-sm shadow-md">▶</div>
+                        </div>
+                        
+                        <div class="absolute inset-0 bg-gradient-to-t from-pink-950/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 p-4 flex items-end">
+                            <p class="text-[10px] font-bold text-white uppercase tracking-wider">{{ media.title || 'View Asset' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <div v-else class="text-center w-full py-12 text-rose-300 font-medium text-xs">The gallery portfolio is currently empty.</div>
+        </div>
+    </div>
+</section>
+
+            <section ref="aboutSection" class="scroll-mt-6 border-t border-pink-200/40 pt-16 mb-10 space-y-14">
+                <div class="text-center max-w-3xl mx-auto">
+                    <span class="text-[11px] font-black tracking-widest text-pink-500 bg-pink-50 border border-pink-100 px-3 py-1 rounded-full uppercase">Japanese Restaurant</span>
+                    <h2 class="text-3xl sm:text-5xl font-black text-rose-950 tracking-tight mt-4 leading-tight">
+                        "A Taste of Japan, Right in the Heart of Lipa City."
+                    </h2>
+                    <p class="mt-4 text-base text-rose-700/70 font-medium max-w-xl mx-auto leading-relaxed">
+                        Bringing people together over authentic flavors, cozy spaces, and local hospitality.
+                    </p>
+                </div>
+
+                <div class="bg-white/80 rounded-3xl border border-pink-100 p-8 md:p-12 shadow-xs backdrop-blur-xs relative overflow-hidden">
+                    <div class="absolute -right-8 -bottom-8 text-9xl font-black text-pink-100/30 select-none font-serif">川</div>
+                    <div class="max-w-3xl">
+                        <h3 class="text-xs font-extrabold uppercase tracking-widest text-pink-500 mb-3 flex items-center gap-2">
+                            <span>🌸</span> Our Story
+                        </h3>
+                        <h4 class="text-xl font-bold text-rose-950 tracking-tight mb-4">The Brand Identity</h4>
+                        <div class="space-y-4 text-sm text-rose-900/80 leading-relaxed font-medium">
+                            <p>
+                                <strong class="text-rose-950 font-bold">KAWA Lipa</strong> was born out of a deep passion for Japanese culinary culture and a desire to bring a unique, aesthetic dining experience to the community of Lipa. The word <span class="bg-pink-50 text-pink-600 px-1.5 py-0.5 rounded font-bold">"Kawa" (川)</span> means river in Japanese—symbolizing a continuous flow of good food, warm conversations, and unforgettable memories shared between our customers, our crews, and our community.
+                            </p>
+                            <p>
+                                Whether you are looking for a quiet corner to enjoy a premium brew, a cozy spot to study, or a place to share a hearty bowl of ramen with family and friends, KAWA Lipa offers a sanctuary where modern cafe aesthetics meet traditional Japanese comfort.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="text-center">
+                        <span class="text-xs font-extrabold uppercase tracking-widest text-pink-500">Core Values</span>
+                        <p class="text-lg font-bold text-rose-950 tracking-tight">What Makes KAWA Special</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white/60 border border-pink-100/60 rounded-2xl p-6 shadow-2xs hover:border-pink-200 transition-all text-center space-y-3 backdrop-blur-xs">
+                            <div class="text-3xl">🍜</div>
+                            <h4 class="text-sm font-black text-rose-950 uppercase tracking-wider">Authentic Comfort</h4>
+                            <p class="text-xs text-rose-700/70 leading-relaxed font-medium">We meticulously prepare our dishes—from savory ramen broths to crispy katsu—to ensure every bite feels like a warm embrace.</p>
+                        </div>
+                        <div class="bg-white/60 border border-pink-100/60 rounded-2xl p-6 shadow-2xs hover:border-pink-200 transition-all text-center space-y-3 backdrop-blur-xs">
+                            <div class="text-3xl">☕</div>
+                            <h4 class="text-sm font-black text-rose-950 uppercase tracking-wider">Premium Quality</h4>
+                            <p class="text-xs text-rose-700/70 leading-relaxed font-medium">From our hand-picked coffee beans to our high-grade matcha, we never compromise on the quality of our ingredients.</p>
+                        </div>
+                        <div class="bg-white/60 border border-pink-100/60 rounded-2xl p-6 shadow-2xs hover:border-pink-200 transition-all text-center space-y-3 backdrop-blur-xs">
+                            <div class="text-3xl">👥</div>
+                            <h4 class="text-sm font-black text-rose-950 uppercase tracking-wider">Local Community</h4>
+                            <p class="text-xs text-rose-700/70 leading-relaxed font-medium">More than just a restaurant, we are a space for local foodies, students, and families to connect and feel at home.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="mt-24 border-t border-rose-200/60 bg-rose-500/70 pt-16 pb-8 text-white">
+    <div class="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-10 pb-12 border-b border-rose-200/60">
+        
+        <!-- Column 1: Brand & Reviews -->
+        <div class="space-y-4">
+            <div class="flex items-center gap-2">
+                <img src="/storage/images/logo_kawa.png" alt="KAWA LIPA Logo" class="w-12 h-12 rounded-lg object-cover shadow-xs" />
+                <span class="text-base font-black text-white tracking-wider">KAWA LIPA</span>
+            </div>
+            <p class="text-xs text-white font-medium leading-relaxed">
+                Experience premium vibes and unforgettable traditional moments right in the heart of Lipa City.
+            </p>
+            <!-- Review Badge -->
+            <div class="inline-flex items-center gap-2 bg-white border border-rose-200/80 px-3 py-2 rounded-xl shadow-3xs">
+                <span class="text-sm">🌟</span>
+                <div class="text-left">
+                    <p class="text-[11px] font-black text-black uppercase tracking-wider leading-none">100% Recommended</p>
+                    <p class="text-[10px] text-black font-bold mt-0.5">(16 Public Reviews)</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Column 2: Exact Location Coordinates -->
+        <div class="space-y-3">
+            <h4 class="text-xs font-black uppercase text-whitetracking-widest">Find Us</h4>
+            <div class="flex items-start gap-2 text-xs text-white leading-relaxed font-medium">
+                <span class="text-sm mt-0.5">📍</span>
+                <p>
+                    <span class="font-bold text-white block mb-0.5">W5X6+99C</span>
+                    Beside Dali's Store, TM Kalaw St,<br>
+                    Balintawak, Lipa City, 4217 Batangas,<br>
+                    Philippines
+                </p>
+            </div>
+        </div>
+
+        <!-- Column 3: Direct Connect & Contact Info -->
+        <div class="space-y-3">
+            <h4 class="text-xs font-black uppercase text-white  tracking-widest">Get In Touch</h4>
+            <ul class="space-y-2.5 text-xs text-white font-medium">
+                <li class="flex items-center gap-2">
+                    <span class="text-sm ">📞</span>
+                    <a href="tel:09778209336" class="hover:text-pink-600 transition-colors">0977 820 9336</a>
+                </li>
+                <li class="flex items-center gap-2">
+                    <span class="text-sm">🌐</span>
+                    <a href="https://www.facebook.com/search/top?q=KAWA%20Lipa" target="_blank" rel="noopener noreferrer" class="hover:text-pink-600 transition-colors font-bold text-white flex items-center gap-1">
+                        KAWA Lipa <span class="text-[10px] text-rose-400 font-normal">→</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+    </div>
+
+    <!-- Bottom Copyright Note -->
+    <div class="max-w-6xl mx-auto px-6 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] text-white font-bold uppercase tracking-wider">
+        <p class="text-white">© 2026 KAWA LIPA. All Rights Reserved.</p>
+        <p class="text-white">Premium Experiences & Gatherings</p>
+    </div>
+</footer>
+
+
+    </div>
+
+    <div v-if="isMenuModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rose-950/40 backdrop-blur-sm transition-opacity duration-300" @click.self="closeMenuModal">
+        <div class="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-pink-100 transform transition-all duration-300 scale-100 animate-scale-up flex flex-col">
+            <div class="w-full h-64 bg-rose-50 relative">
+                <img v-if="selectedMenuItem?.image_path" :src="selectedMenuItem.image_path.startsWith('http') ? selectedMenuItem.image_path : `/storage/${selectedMenuItem.image_path}`" :alt="selectedMenuItem?.name" class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex flex-col items-center justify-center text-rose-300 gap-1">
+                    <span class="text-4xl">🍱</span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-rose-400/50">No Image Preview Available</span>
+                </div>
+                <button @click="closeMenuModal" class="absolute top-4 right-4 bg-rose-950/60 hover:bg-rose-950/80 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition shadow-md select-none">✕</button>
+            </div>
+
+            <div class="p-6 space-y-4">
+                <div class="flex items-center justify-between gap-3">
+                    <span class="text-xs font-black uppercase bg-pink-50 border border-pink-100 text-pink-500 px-3 py-1 rounded-xl tracking-wider">
+                        {{ getCategoryName(selectedMenuItem) }}
+                    </span>
+                    <span class="text-xl font-black text-rose-500">₱{{ selectedMenuItem?.price || '0.00' }}</span>
+                </div>
+                <div>
+                    <h2 class="text-xl font-black text-rose-950 tracking-tight mb-2">{{ selectedMenuItem?.name }}</h2>
+                    <p class="text-sm text-rose-800/80 leading-relaxed font-medium whitespace-pre-line">{{ selectedMenuItem?.description || 'This premium item has no full description details assigned yet.' }}</p>
+                </div>
+                <div class="pt-2">
+                    <button @click="closeMenuModal" class="w-full py-3 bg-gradient-to-r from-pink-400 to-rose-400 hover:from-pink-500 hover:to-rose-500 text-white font-extrabold text-xs uppercase tracking-wider rounded-2xl shadow-sm transition-all transform active:scale-98">Back to Catalog</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div v-if="isGalleryModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md transition-opacity duration-300" @click.self="closeGalleryModal">
+        <div class="relative max-w-4xl w-full h-full max-h-[80vh] flex flex-col justify-center items-center group/theater animate-scale-up">
+            <div class="absolute top-0 left-0 w-full p-4 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent text-white z-30 opacity-100 sm:opacity-0 group/theater:opacity-100 transition-opacity">
+                <span class="text-xs font-extrabold uppercase tracking-wide bg-white/10 px-3 py-1.5 rounded-lg border border-white/10">{{ selectedGalleryItem?.title || 'Asset View' }}</span>
+                <button @click="closeGalleryModal" class="bg-white/10 hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center font-bold text-base transition border border-white/20 shadow-md">✕</button>
+            </div>
+
+            <div class="w-full h-full flex items-center justify-center p-4">
+                <img v-if="selectedGalleryItem?.media_type === 'image'" :src="`/storage/${selectedGalleryItem.file_path}`" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+                <video v-else-if="selectedGalleryItem?.media_type === 'video'" :src="`/storage/${selectedGalleryItem.file_path}`" class="max-w-full max-h-full rounded-xl shadow-2xl" controls autoplay></video>
             </div>
         </div>
     </div>
 </template>
+
+<style>
+/* Custom Layout Scrollbars Elements */
+.custom-scrollbar::-webkit-scrollbar {
+    height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(244, 63, 94, 0.05);
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(244, 63, 94, 0.3);
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(244, 63, 94, 0.5);
+}
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(244, 63, 94, 0.3) rgba(244, 63, 94, 0.05);
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Header Wave System Keyframes */
+.waves {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 20px;
+    max-height: 30px;
+}
+.wave-back {
+    animation: moveWaveLeft 22s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+}
+.wave-front {
+    animation: moveWaveRight 14s cubic-bezier(0.55, 0.5, 0.45, 0.5) infinite;
+}
+
+@keyframes moveWaveLeft {
+    0% { transform: translate3d(-90px, 0, 0); }
+    100% { transform: translate3d(85px, 0, 0); }
+}
+@keyframes moveWaveRight {
+    0% { transform: translate3d(85px, 0, 0); }
+    100% { transform: translate3d(-90px, 0, 0); }
+}
+
+/* Component Modals Pop Effects */
+@keyframes scaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.animate-scale-up {
+    animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Floating Elements Keyframes Engine */
+@keyframes floatSlow {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-25px) rotate(8deg); }
+}
+@keyframes floatMedium {
+    0%, 100% { transform: translateY(0px) rotate(0deg); }
+    50% { transform: translateY(-18px) rotate(-12deg); }
+}
+@keyframes pulseGentle {
+    0%, 100% { transform: scale(1); opacity: 0.15; }
+    50% { transform: scale(1.03); opacity: 0.22; }
+}
+.animate-float-slow { animation: floatSlow 8s ease-in-out infinite; }
+.animate-float-medium { animation: floatMedium 6s ease-in-out infinite; }
+.animate-pulse-gentle { animation: pulseGentle 4s ease-in-out infinite; }
+
+/* Vector Streaming Ramen Smoke Trails */
+.smoke-line {
+    position: absolute;
+    width: 4px;
+    height: 25px;
+    background: linear-gradient(to top, rgba(244,63,94,0.4), transparent);
+    border-radius: 50%;
+    opacity: 0;
+    animation: riseSmoke 3s ease-in-out infinite;
+}
+.smoke-line.position-1 { left: 35px; bottom: 65px; animation-delay: 0s; }
+.smoke-line.position-2 { left: 55px; bottom: 65px; animation-delay: 0.8s; }
+.smoke-line.position-3 { left: 75px; bottom: 65px; animation-delay: 0.4s; }
+
+@keyframes riseSmoke {
+    0% { transform: translateY(0) scaleX(1); opacity: 0; }
+    15% { opacity: 0.7; }
+    50% { transform: translateY(-20px) scaleX(1.5); opacity: 0.4; }
+    100% { transform: translateY(-45px) scaleX(0.5); opacity: 0; }
+}
+
+/* Performance Optimized CSS/JS Butterfly Elements */
+.bfly-element {
+    animation: bflyFly var(--bfly-duration) linear infinite;
+}
+.bfly-wings {
+    display: flex;
+    animation: bflyFlutter var(--bfly-flutter) ease-in-out infinite alternate;
+    transform-style: preserve-3d;
+}
+.bfly-wing {
+    width: 50%;
+    height: 100%;
+    background: radial-gradient(circle, #f43f5e 20%, #fda4af 80%);
+    border-radius: 50% 50% 10% 40%;
+}
+.bfly-wing.bfly-left {
+    transform-origin: right center;
+}
+.bfly-wing.bfly-right {
+    transform-origin: left center;
+    transform: scaleX(-1);
+}
+
+@keyframes bflyFly {
+    0% {
+        transform: translateY(0) translateX(0);
+        opacity: 0;
+    }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% {
+        transform: translateY(-800px) translateX(var(--bfly-drift));
+        opacity: 0;
+    }
+}
+@keyframes bflyFlutter {
+    0% { transform: rotateY(-65deg); }
+    100% { transform: rotateY(65deg); }
+}
+
+/* Webkit Browsers (Chrome, Safari, Edge) */
+.custom-pink-scrollbar::-webkit-scrollbar {
+    height: 8px !important; /* Forces scrollbar thickness visible */
+    display: block !important;
+}
+
+.custom-pink-scrollbar::-webkit-scrollbar-track {
+    background: #fce7f3 !important; /* light pink background */
+    border-radius: 9999px;
+}
+
+.custom-pink-scrollbar::-webkit-scrollbar-thumb {
+    background: #ec4899 !important; /* pink-500 handle bar */
+    border-radius: 9999px;
+}
+
+.custom-pink-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #db2777 !important; /* darker pink on drag hover */
+}
+
+/* Firefox Engine Fallback */
+.custom-pink-scrollbar {
+    scrollbar-width: thin !important;
+    scrollbar-color: #ec4899 #fce7f3 !important;
+}
+</style>
